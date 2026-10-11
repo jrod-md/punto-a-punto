@@ -1,3 +1,4 @@
+import { createId } from './storage/ids';
 import { useEffect, useRef, useState } from 'react';
 import { exportProjectFile, parseProjectFile } from './core/projectFile';
 import type { GaugeProfile, Project, ProjectRecord } from './core/types';
@@ -6,6 +7,8 @@ import type { LocalData } from './storage/repository';
 import Editor from './components/Editor';
 import ProjectForm from './components/ProjectForm';
 import ConfirmDialog from './components/ConfirmDialog';
+import Profiles from './components/Profiles';
+import { profileProjectNames } from './core/profiles';
 
 export default function App({ openData = openLocalData }: { openData?: () => Promise<LocalData> }) {
   const [data, setData] = useState<LocalData | null>(null);
@@ -13,6 +16,8 @@ export default function App({ openData = openLocalData }: { openData?: () => Pro
   const [profiles, setProfiles] = useState<GaugeProfile[]>([]);
   const [active, setActive] = useState<ProjectRecord | null>(null);
   const [creating, setCreating] = useState(false);
+  const [managingProfiles, setManagingProfiles] = useState(false);
+  const [calibratingId, setCalibratingId] = useState<string | undefined>();
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [confirmation, setConfirmation] = useState<{ title: string; message: string; confirmLabel: string; action(): Promise<void> } | null>(null);
@@ -42,6 +47,7 @@ export default function App({ openData = openLocalData }: { openData?: () => Pro
   function saveChange(project: Project) {
     if (!data) return;
     const record: ProjectRecord = { ...project, updatedAt: new Date().toISOString() };
+    setActive(record);
     const version = ++revision.current;
     dirty.current = true;
     setSaveStatus('Guardando cambios…');
@@ -69,10 +75,24 @@ export default function App({ openData = openLocalData }: { openData?: () => Pro
   async function duplicate(project: ProjectRecord) {
     if (!data) return;
     try {
-      const copy = { ...project, id: crypto.randomUUID(), name: `${project.name} (copia)`, updatedAt: new Date().toISOString() };
+      const copy = { ...project, id: createId(), name: `${project.name} (copia)`, updatedAt: new Date().toISOString() };
       await data.projects.save(copy);
       setProjects((previous) => [...previous, copy]); setError('');
     } catch { setError('No se pudo duplicar el proyecto.'); }
+  }
+
+  async function saveProfile(profile: GaugeProfile) {
+    if (!data) return;
+    await data.profiles.save(profile);
+    setProfiles((previous) => previous.some((entry) => entry.id === profile.id) ? previous.map((entry) => entry.id === profile.id ? profile : entry) : [...previous, profile]);
+  }
+
+  async function removeProfile(id: string) {
+    if (!data) return;
+    const names = profileProjectNames(id, await data.projects.list());
+    if (names.length) throw new Error(`No puedes borrar esta muestra: la usan ${names.map((name) => `«${name}»`).join(', ')}.`);
+    await data.profiles.remove(id);
+    setProfiles((previous) => previous.filter((entry) => entry.id !== id));
   }
 
   async function remove(project: ProjectRecord) {
@@ -114,8 +134,14 @@ export default function App({ openData = openLocalData }: { openData?: () => Pro
   }
 
   if (!data) return <main className="page"><p className="eyebrow">PUNTO A PUNTO</p><h1>Tus proyectos</h1><p role={error ? 'alert' : 'status'}>{error || 'Abriendo tus proyectos guardados…'}</p></main>;
+  if (managingProfiles) return <Profiles profiles={profiles} projects={projects} initialEditId={calibratingId} onSave={saveProfile} onRemove={removeProfile} onBack={() => { setManagingProfiles(false); setCalibratingId(undefined); }} />;
   const profile = active ? profiles.find((entry) => entry.id === active.profileId) : undefined;
-  if (active && profile) return <Editor key={active.id} initialProject={active} profile={profile} saveStatus={saveStatus} onChange={saveChange} onBack={() => {
+  if (active && profile) return <Editor key={active.id} initialProject={active} profiles={profiles} saveStatus={saveStatus} onChange={saveChange} onCalibrate={(project) => {
+    void queue.current.then(() => {
+      if (failedSave.current) { setSaveStatus('El último cambio no está guardado. Exporta un respaldo desde el editor o vuelve a intentar una edición.'); return; }
+      setActive({ ...project, updatedAt: active.updatedAt }); setCalibratingId(project.profileId); setManagingProfiles(true);
+    });
+  }} onBack={() => {
     void queue.current.then(() => {
       if (failedSave.current) { setSaveStatus('El último cambio no está guardado. Exporta un respaldo desde el editor o vuelve a intentar una edición.'); return; }
       setActive(null);
@@ -124,7 +150,7 @@ export default function App({ openData = openLocalData }: { openData?: () => Pro
   if (creating) return <main className="page narrow"><button className="quiet" onClick={() => { setCreating(false); setError(''); }}>← Proyectos</button><ProjectForm profiles={profiles} onCreate={(project) => { void createProject(project); }} />{error && <p role="alert" className="error">{error}</p>}</main>;
 
   return <main className="page">
-    <header className="page-heading"><div><p className="eyebrow">PUNTO A PUNTO · TAPESTRY CROCHET</p><h1>Tus proyectos</h1><p>Tu hilo, tus medidas, tu diseño.</p></div><button className="primary" onClick={() => setCreating(true)}>Crear proyecto</button></header>
+    <header className="page-heading"><div><p className="eyebrow">PUNTO A PUNTO · TAPESTRY CROCHET</p><h1>Tus proyectos</h1><p>Tu hilo, tus medidas, tu diseño.</p></div><div className="page-actions"><button className="primary" onClick={() => setCreating(true)}>Crear proyecto</button><button onClick={() => { setCalibratingId(undefined); setManagingProfiles(true); }}>Mis muestras</button></div></header>
     <div className="backup-line"><label className="file-button">Importar respaldo JSON<input type="file" accept=".json,application/json" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void importFile(file); }} /></label><p>Los proyectos se guardan en este navegador. Exporta un JSON para conservar un respaldo.</p></div>
     {error && <p role="alert" className="error">{error}</p>}
     {notice && !error && <p role="status" className="notice">{notice}</p>}

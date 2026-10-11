@@ -1,3 +1,4 @@
+import { createId } from '../storage/ids';
 import { useState } from 'react';
 import { gauge } from '../core/gauge';
 import { sizing } from '../core/sizing';
@@ -29,8 +30,8 @@ export default function ProjectForm({ profiles, onCreate }: Props) {
     event.preventDefault();
     if (!name.trim()) { setError('Escribe un nombre para tu proyecto.'); return; }
     if (!result || !profile) { setError(sizeError); return; }
-    const backgroundId = crypto.randomUUID();
-    onCreate({ id: crypto.randomUUID(), name: name.trim(), profileId, construction, cols: result.cols, rows: result.rows, cells: Array<number>(result.cols * result.rows).fill(0), palette: [{ id: backgroundId, name: 'Blanco', hex: '#ffffff' }, { id: crypto.randomUUID(), name: 'Oscuro', hex: '#30382f' }], backgroundColorId: backgroundId, carryAlways: false, marginPercent: 10, progress: { row: 1, stitch: 1 }, tapStep: 5, updatedAt: new Date().toISOString() });
+    const backgroundId = createId();
+    onCreate({ id: createId(), name: name.trim(), profileId, construction, cols: result.cols, rows: result.rows, cells: Array<number>(result.cols * result.rows).fill(0), palette: [{ id: backgroundId, name: 'Blanco', hex: '#ffffff' }, { id: createId(), name: 'Oscuro', hex: '#30382f' }], backgroundColorId: backgroundId, carryAlways: false, marginPercent: 10, progress: { row: 1, stitch: 1 }, tapStep: 5, updatedAt: new Date().toISOString() });
   }}>
     <p className="eyebrow">EMPIEZA POR LAS MEDIDAS</p><h1>Nuevo proyecto</h1>
     <label>Nombre del proyecto<input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} placeholder="Por ejemplo, manta de bebé" required /></label>

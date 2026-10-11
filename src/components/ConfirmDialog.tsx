@@ -11,7 +11,7 @@ export default function ConfirmDialog({ title, message, confirmLabel, onConfirm,
     return () => { if (previous instanceof HTMLElement && previous.isConnected) previous.focus(); };
   }, []);
   return <div className="dialog-backdrop"><div ref={box} className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmation-title" aria-describedby="confirmation-message" onKeyDown={(event) => {
-    if (event.key === 'Escape') { event.preventDefault(); onCancel(); }
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onCancel(); }
     if (event.key === 'Tab') {
       const buttons = box.current?.querySelectorAll<HTMLButtonElement>('button');
       const first = buttons?.[0]; const last = buttons?.[1];
