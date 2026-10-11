@@ -42,3 +42,7 @@ export interface Project extends Grid {
   progress: { row: number; stitch: number };
   tapStep: number;
 }
+
+export interface ProjectRecord extends Project {
+  updatedAt: string;
+}
