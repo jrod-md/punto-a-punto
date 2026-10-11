@@ -35,3 +35,12 @@ La medición registrada en este equipo fue de 0,10 ms como máximo por `drawImag
 - Las confirmaciones usan cuadros propios en español con foco inicial en «Cancelar», cierre con Escape y recorrido de foco acotado. La confirmación nativa de una versión anterior bloqueó la automatización durante la prueba y motivó esta sustitución.
 
 No se implementaron los elementos excluidos del encargo: creación y calibración de perfiles, panel de hilo, pantalla de patrón, PDF, modo tejer, importación de imágenes y PWA.
+
+## Resultado final de comandos
+
+- `npm run typecheck`: correcto, sin errores.
+- `npm run lint`: correcto, sin errores ni advertencias.
+- `npm test`: 133 pruebas correctas en 9 archivos.
+- `npm run build`: correcto, 42 módulos transformados y salida en `dist/`.
+
+La comprobación interactiva final de los cuadros propios de confirmación quedó pendiente: el diálogo nativo anterior bloqueó los clics del navegador integrado y sus APIs de Escape, cierre y lectura de diálogo. Se solicitó cerrar ese diálogo con «Cancelar» para continuar. Las pruebas puras de recorte, conservación y deshacer sí pasaron. Tampoco se probó en un teléfono físico.
