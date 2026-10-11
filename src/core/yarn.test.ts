@@ -21,7 +21,9 @@ describe('yarn', () => {
     expect(a.carriedStitches).toBe(4);
     expect(b.carriedStitches).toBe(4);
     expect(c.workedStitches).toBe(0);
-    expect(c.carriedStitches).toBe(8);
+    expect(c.carriedStitches).toBe(0);
+    expect(c.totalCm).toBe(0);
+    expect(c.meters).toBe(0);
     expect(a.totalCm).toBeCloseTo(4 * 3.8 + 4 * 0.625 * 1.1 + 30);
     expect(b.totalCm).toBeCloseTo(a.totalCm);
     expect(estimateColorYarn({ ...project, carryAlways: false }, TEST_PROFILE, 'a').carriedStitches).toBe(0);
@@ -43,6 +45,20 @@ describe('yarn', () => {
     expect(a.workedStitches).toBe(4);
     expect(a.carriedStitches).toBe(4);
     expect(a.totalCm).toBeCloseTo(4 * 3.8 + 4 * 0.625 * 1.1 + 30);
+  });
+
+  it('rounds an exact 330 cm total stably despite floating point error', () => {
+    const project = { ...TEST_PROJECT, cols: 133, rows: 1, cells: Array<number>(133).fill(0), marginPercent: 10 };
+    const profile = { ...TEST_PROFILE, yarnMeasuredCm: 270, yarnMeasuredStitches: 133 };
+    const result = estimateColorYarn(project, profile, 'a');
+    expect(result.totalCm).toBeCloseTo(330);
+    expect(result.meters).toBe(3.3);
+  });
+
+  it('still rounds genuinely larger totals upward', () => {
+    const project = { ...TEST_PROJECT, cols: 1, rows: 1, cells: [0], marginPercent: 0 };
+    const profile = { ...TEST_PROFILE, yarnMeasuredCm: 300.000001, yarnMeasuredStitches: 1 };
+    expect(estimateColorYarn(project, profile, 'a').meters).toBe(3.4);
   });
 
   it.each([false, true])('gives an absent project color zero yarn and no tails (carryAlways=%s)', (carryAlways) => {

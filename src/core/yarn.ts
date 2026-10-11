@@ -16,7 +16,7 @@ function calculateColorYarn(project: Project, profile: GaugeProfile, colorId: st
   const { yarnPerStitchCm, carriedPerStitchCm } = gauge(profile);
   let workedStitches = 0;
   let carriedStitches = 0;
-  if (colorIndex >= 0) {
+  if (colorIndex >= 0 && project.cells.includes(colorIndex)) {
     for (let row = 0; row < project.rows; row += 1) {
       const cells = project.cells.slice(row * project.cols, (row + 1) * project.cols);
       const worked = cells.filter((color) => color === colorIndex).length;
@@ -30,7 +30,11 @@ function calculateColorYarn(project: Project, profile: GaugeProfile, colorId: st
   const totalCm = used
     ? (workedStitches * yarnPerStitchCm + carriedStitches * carriedPerStitchCm + 30) * (1 + project.marginPercent / 100)
     : 0;
-  const meters = Math.ceil(totalCm / 10) / 10;
+  const tenths = totalCm / 10;
+  const nearest = Math.round(tenths);
+  // Ignore only arithmetic noise within a few machine precision units.
+  const stableTenths = Math.abs(tenths - nearest) <= Number.EPSILON * Math.max(1, Math.abs(tenths)) * 8 ? nearest : tenths;
+  const meters = Math.ceil(stableTenths) / 10;
   const estimate = { colorId, workedStitches, carriedStitches, totalCm, meters };
   return profile.metersPerBall === undefined
     ? estimate
