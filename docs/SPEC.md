@@ -117,7 +117,7 @@ carriedPerStitchCm = stitchWidthCm * carriedFactor
 Para cada fila y cada color `c`:
 
 - `worked(c, fila)` = celdas de la fila con color `c`.
-- Un color se lleva en una fila si aparece en esa fila y la fila tiene dos o más colores. Con `carryAlways`, todos los colores del proyecto distintos del que se teje se llevan en todas las filas.
+- Un color se lleva en una fila si aparece en esa fila y la fila tiene dos o más colores. Con `carryAlways`, todos los colores usados en el proyecto (los que aparecen en al menos una celda) se llevan en todas las filas. Un color de la paleta que no aparece en ninguna celda nunca se lleva y siempre da 0 m.
 - `carried(c, fila)` = `cols - worked(c, fila)` si el color se lleva en esa fila; si no, 0.
 
 ```
