@@ -15,6 +15,8 @@ Antes de corregir `yarn.ts`, la prueba de color sin usar obtuvo 8 puntos llevado
 - Mediciones de botones, entradas, selectores y desplegables: ningún control visible menor de 44 × 44 px. Sin desbordamiento horizontal a 360 px.
 - Proyecto real de 200 × 200 creado desde puntos y filas: tamaño resultante 125 × 111,11 cm, pintura y ampliación mediante rueda.
 - Guardado fallido simulado detrás de la interfaz de repositorio: aviso visible en español, dibujo retenido y recuperación al siguiente guardado correcto.
+- Confirmaciones propias comprobadas: cancelar el recorte conserva la cuadrícula de 200 × 200; confirmar la reducción a 1 × 1 y deshacer restituye las medidas originales. Escape cancela el borrado y conserva el proyecto. El foco inicial queda en «Cancelar».
+- Comprobación final a 360 px: ningún control visible menor de 44 × 44 px, sin desbordamiento horizontal y sin advertencias ni errores en consola en una pestaña nueva.
 
 ## Comprobaciones reproducibles
 
@@ -43,4 +45,4 @@ No se implementaron los elementos excluidos del encargo: creación y calibració
 - `npm test`: 133 pruebas correctas en 9 archivos.
 - `npm run build`: correcto, 42 módulos transformados y salida en `dist/`.
 
-La comprobación interactiva final de los cuadros propios de confirmación quedó pendiente: el diálogo nativo anterior bloqueó los clics del navegador integrado y sus APIs de Escape, cierre y lectura de diálogo. Se solicitó cerrar ese diálogo con «Cancelar» para continuar. Las pruebas puras de recorte, conservación y deshacer sí pasaron. Tampoco se probó en un teléfono físico.
+La comprobación interactiva final se completó tras cerrar la pestaña de prueba que retenía el bloqueo de la confirmación nativa anterior. El navegador volvió a responder y permitió comprobar cancelación, recorte, deshacer y Escape con los cuadros propios. No se probó en un teléfono físico.
