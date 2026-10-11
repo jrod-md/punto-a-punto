@@ -3,6 +3,8 @@ import type { CellPoint } from '../core/editor';
 import { gauge } from '../core/gauge';
 import type { Bounds } from '../core/grid';
 import type { GaugeProfile, Project } from '../core/types';
+import { completeView, openingView, resizedView, RULER_SIZE, spacedLabels } from './view';
+import type { RulerLabel, View, Viewport } from './view';
 
 export type Tool = 'paint' | 'erase' | 'fill' | 'select';
 interface Point { x: number; y: number }
@@ -39,7 +41,9 @@ export class CanvasEngine {
   private pinch: { center: Point; distance: number } | null = null;
   private frame = 0;
   private space = false;
-  private readonly ruler = 32;
+  private readonly ruler = RULER_SIZE;
+  private complete = false;
+  private initialized = false;
 
   constructor(private canvas: HTMLCanvasElement) {
     const context = canvas.getContext('2d');
@@ -56,9 +60,14 @@ export class CanvasEngine {
     canvas.addEventListener('blur', this.blur);
     this.observer = new ResizeObserver(() => {
       const box = canvas.getBoundingClientRect();
+      const previous = this.viewport();
       this.width = box.width; this.height = box.height;
       canvas.width = Math.round(box.width * devicePixelRatio);
       canvas.height = Math.round(box.height * devicePixelRatio);
+      if (this.options && this.width && this.height) {
+        this.setView(this.initialized && previous.width && previous.height ? resizedView(this.view(), previous, this.viewport()) : openingView(this.viewport()));
+        this.initialized = true;
+      }
       this.schedule();
     });
     this.observer.observe(canvas);
@@ -66,12 +75,24 @@ export class CanvasEngine {
 
   update(options: CanvasOptions) {
     const changed = this.options?.project !== options.project;
+    const previous = this.viewport();
     this.options = options;
     const measurements = gauge(options.profile);
     this.ratio = measurements.rowHeightCm / measurements.stitchWidthCm;
+    if (this.width && this.height) {
+      if (!this.initialized) { this.setView(openingView(this.viewport())); this.initialized = true; }
+      else if (previous.ratio !== this.ratio || previous.cols !== options.project.cols || previous.rows !== options.project.rows) this.setView(resizedView(this.view(), previous, this.viewport()));
+    }
     if (changed) this.rebuildRaster();
     this.schedule();
   }
+
+  private viewport(): Viewport {
+    return { width: this.width, height: this.height, cols: this.options?.project.cols ?? 1, rows: this.options?.project.rows ?? 1, ratio: this.ratio };
+  }
+
+  private view(): View { return { cellWidth: this.cellWidth, ...this.origin, complete: this.complete }; }
+  private setView(view: View) { this.cellWidth = view.cellWidth; this.origin = { x: view.x, y: view.y }; this.complete = view.complete; }
 
   private rebuildRaster() {
     const project = this.options?.project;
@@ -141,17 +162,21 @@ export class CanvasEngine {
     ctx.fillStyle = '#faf8f2';
     ctx.fillRect(0, 0, this.width, this.ruler); ctx.fillRect(0, this.height - this.ruler, this.width, this.ruler); ctx.fillRect(0, 0, this.ruler, this.height); ctx.fillRect(this.width - this.ruler, 0, this.ruler, this.height);
     ctx.fillStyle = '#30382f'; ctx.font = '11px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const columnLabels: RulerLabel[] = [];
     for (let col = firstCol; col < lastCol; col += 1) {
       const position = x + (col + 0.5) * cw;
       if (position < this.ruler || position > this.width - this.ruler || (cw < 24 && col !== 0 && (col + 1) % (cw < 5 ? 10 : 5) !== 0 && col + 1 !== project.cols)) continue;
-      ctx.fillText(String(col + 1), position, 16); ctx.fillText(String(col + 1), position, this.height - 16);
+      columnLabels.push({ value: col + 1, position, size: ctx.measureText(String(col + 1)).width, edge: col === 0 || col + 1 === project.cols });
     }
+    for (const label of spacedLabels(columnLabels)) { ctx.fillText(String(label.value), label.position, 14); ctx.fillText(String(label.value), label.position, this.height - 14); }
+    const rowLabels: RulerLabel[] = [];
     for (let row = firstRow; row < lastRow; row += 1) {
       const position = y + (row + 0.5) * ch;
       const label = project.rows - row;
       if (position < this.ruler || position > this.height - this.ruler || (ch < 20 && label !== 1 && label % (ch < 5 ? 10 : 5) !== 0 && label !== project.rows)) continue;
-      ctx.fillText(String(label), 16, position); ctx.fillText(String(label), this.width - 16, position);
+      rowLabels.push({ value: label, position, size: 12, edge: label === 1 || label === project.rows });
     }
+    for (const label of spacedLabels(rowLabels)) { ctx.fillText(String(label.value), 14, label.position); ctx.fillText(String(label.value), this.width - 14, label.position); }
   }
 
   private point(event: PointerEvent): Point {
@@ -192,10 +217,11 @@ export class CanvasEngine {
     const point = this.point(event);
     this.pointers.set(event.pointerId, point);
     if (this.pointers.size >= 2) {
+      this.complete = false;
       this.rebuildRaster(); this.stroke.clear(); this.previewSelection = null; this.mode = 'gesture'; this.pinch = this.pinchState(); this.schedule(); return;
     }
     this.startCell = this.cell(point); this.lastCell = null; this.moving = { col: 0, row: 0 };
-    if (event.button === 1 || this.space) { this.mode = 'pan'; return; }
+    if (event.button === 1 || this.space) { this.complete = false; this.mode = 'pan'; return; }
     if (!this.startCell) return;
     if (this.options.tool === 'fill') { this.mode = 'fill'; return; }
     if (this.options.tool === 'select') {
@@ -263,6 +289,7 @@ export class CanvasEngine {
   private blur = () => { this.space = false; };
 
   zoom(factor: number, point: Point = { x: this.width / 2, y: this.height / 2 }) {
+    this.complete = false;
     const width = Math.min(100, Math.max(1, this.cellWidth * factor));
     const actual = width / this.cellWidth;
     this.origin = { x: point.x + (this.origin.x - point.x) * actual, y: point.y + (this.origin.y - point.y) * actual };
@@ -271,9 +298,7 @@ export class CanvasEngine {
 
   fit() {
     if (!this.options) return;
-    const project = this.options.project;
-    this.cellWidth = Math.max(1, Math.min(36, (this.width - 80) / project.cols, (this.height - 80) / (project.rows * this.ratio)));
-    this.origin = { x: (this.width - project.cols * this.cellWidth) / 2, y: (this.height - project.rows * this.cellWidth * this.ratio) / 2 };
+    this.setView(completeView(this.viewport()));
     this.schedule();
   }
 

@@ -3,6 +3,7 @@ import type { CanvasOptions } from '../src/editor/canvasEngine';
 import { paintStroke } from '../src/core/editor';
 import { TEST_PROFILE, TEST_PROJECT } from '../src/core/testFixtures';
 import type { Project } from '../src/core/types';
+import { yarn } from '../src/core/yarn';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#canvas')!;
 const results = document.querySelector('#results')!;
@@ -51,6 +52,12 @@ button.onclick = async () => {
     check('120 movimientos no leen, copian ni validan toda la cuadrícula', reads === baselineReads && commits === 0);
     pointer('pointerup', 1, 230, 134); await nextFrame();
     check('El trazo de 200 × 200 se confirma una sola vez', commits === 1 && painted.size > 10);
+    const colorful: Project = { ...project, palette: Array.from({ length: 12 }, (_, index) => ({ id: `color-${index}`, name: `Color ${index + 1}`, hex: '#345678' })), backgroundColorId: 'color-0', cells: Array.from({ length: 40000 }, (_, index) => index % 12) };
+    const yarnTimes: number[] = [];
+    let colorCount = 0;
+    for (let index = 0; index < 5; index += 1) { const start = performance.now(); colorCount = yarn(colorful, TEST_PROFILE).length; yarnTimes.push(performance.now() - start); }
+    const medianYarn = yarnTimes.sort((a, b) => a - b)[2]!;
+    check(`Hilo para 200 × 200 y 12 colores: mediana ${medianYarn.toFixed(2)} ms al terminar el trazo`, colorCount === 12 && medianYarn < 35);
     const beforeGesture = commits;
     pointer('pointerdown', 2, 120, 120); pointer('pointerdown', 3, 220, 220);
     const frames: number[] = [];
