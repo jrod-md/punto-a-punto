@@ -2,6 +2,8 @@ import { openLocalData } from '../src/storage/repository';
 import { exportProjectFile, parseProjectFile } from '../src/core/projectFile';
 import type { PackedProject } from '../src/core/projectFile';
 import { TEST_PROFILE, TEST_PROJECT } from '../src/core/testFixtures';
+import { calibratedProfile, profileDraft } from '../src/core/profiles';
+import { createId } from '../src/storage/ids';
 
 const results = document.querySelector('#results')!;
 const summary = document.querySelector('#summary')!;
@@ -36,7 +38,7 @@ button.onclick = async () => {
     results.append(item);
   }
   try {
-    const name = `punto-a-punto-pruebas-${crypto.randomUUID()}`;
+    const name = `punto-a-punto-pruebas-${createId()}`;
     const local = await openLocalData(name);
     const project = { ...TEST_PROJECT, updatedAt: '2026-10-11T18:00:00.000Z' };
     await check('Primer inicio: exactamente dos perfiles de fábrica', async () => {
@@ -51,6 +53,20 @@ button.onclick = async () => {
       await local.profiles.save(TEST_PROFILE); await local.projects.save(project);
       assert(comparable(await local.projects.get(project.id)) === comparable(project), 'El proyecto cambió.');
       assert((await local.projects.list()).length === 1, 'No aparece en la lista.');
+    });
+    await check('Crear y editar una muestra calibrada; conservarla al reabrir', async () => {
+      const own = calibratedProfile({ ...profileDraft(), name: 'Muestra aislada', hookMm: '4', swatchStitches: '20', swatchRows: '20', swatchWidthCm: '10', swatchHeightCm: '9', yarnMeasuredStitches: '50' }, 'own-profile');
+      await local.profiles.save(own);
+      await local.profiles.save({ ...own, metersPerBall: 100 });
+      const reopened = await openLocalData(name);
+      assert(comparable(await reopened.profiles.get(own.id)) === comparable({ ...own, metersPerBall: 100 }), 'La muestra editada no se conservó.');
+    });
+    await check('Duplicar y quitar una muestra sin alterar el original', async () => {
+      const own = (await local.profiles.get('own-profile'))!;
+      await local.profiles.save({ ...own, id: 'own-copy', name: `${own.name} (copia)` });
+      assert((await local.profiles.list()).some((entry) => entry.id === 'own-copy'), 'No se duplicó la muestra.');
+      await local.profiles.remove('own-copy'); await local.profiles.remove('own-profile');
+      assert((await local.profiles.get('own-copy')) === undefined && (await local.profiles.get(TEST_PROFILE.id)) !== undefined, 'El borrado afectó otra muestra.');
     });
     await check('Celdas en IndexedDB: Uint8Array y un byte por celda', async () => {
       const raw = await openRaw(name);
