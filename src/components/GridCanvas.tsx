@@ -17,7 +17,9 @@ export default function GridCanvas(options: CanvasOptions) {
     engine.current?.update(options);
   }, [options]);
   return (
-    <div className="canvas-area">
+    <div
+      className={`canvas-area${options.weaving ? ' weaving-canvas-area' : ''}`}
+    >
       <div className="zoom-controls">
         <button
           aria-label="Alejar cuadrícula"

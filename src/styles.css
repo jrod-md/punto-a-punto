@@ -315,6 +315,22 @@ legend {
   font-size: 0.75rem;
   background: #fffdf8ed;
 }
+.weaving-canvas-area {
+  display: flex;
+  flex-direction: column;
+}
+.weaving-canvas-area .zoom-controls {
+  position: static;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  padding: 4px 8px;
+  border-bottom: 1px solid #d2d7c9;
+}
+.weaving-canvas-area .grid-canvas {
+  flex: 1 1 0;
+  height: 0;
+  min-height: 0;
+}
 .editor-save {
   position: absolute;
   top: 36px;
