@@ -22,6 +22,13 @@ scope.onmessage = (event) => {
       let result: ImageJobResult;
       if (job.kind === 'decode') {
         progress('Abriendo la imagen en este dispositivo…');
+        if (
+          typeof createImageBitmap !== 'function' ||
+          typeof OffscreenCanvas !== 'function'
+        )
+          throw new Error(
+            'Este navegador no puede procesar imágenes en segundo plano. Abre la app en un navegador actualizado.',
+          );
         const bitmap = await createImageBitmap(job.file);
         const ratio = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
         const width = Math.max(1, Math.round(bitmap.width * ratio));
@@ -75,7 +82,7 @@ scope.onmessage = (event) => {
       scope.postMessage({
         id: job.id,
         error:
-          reason instanceof Error
+          reason instanceof Error && !(reason instanceof DOMException)
             ? reason.message
             : 'No se pudo leer esta imagen. Elige un PNG, JPEG o WebP válido.',
       });
