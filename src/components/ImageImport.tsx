@@ -659,7 +659,7 @@ export default function ImageImport({
               No es pixel art: conservar la proporción
             </button>
           )}
-          {meshError && (
+          {meshError && (cols !== '' || rows !== '' || photo) && (
             <p role="alert" className="error">
               {meshError}
             </p>
