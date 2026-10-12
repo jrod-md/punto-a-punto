@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+.qa/
+.npm-cache/
+AGENTS.md
+docs/SPEC.md
+docs/encargos/
+src/assets/fonts/
+package-lock.json
