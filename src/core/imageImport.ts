@@ -18,6 +18,15 @@ export interface ImageMesh {
   x: number[];
   y: number[];
 }
+export interface GridHint {
+  cols?: number;
+  rows?: number;
+}
+export interface GridInspection {
+  mesh: ImageMesh | null;
+  kind: 'grid' | 'uncertain' | 'photo';
+  small: boolean;
+}
 export interface ImportedDrawing extends Grid {
   palette: PaletteColor[];
   background: number;
@@ -170,32 +179,76 @@ function peaks(profile: number[]): number[] {
   return result;
 }
 
+function periodicity(profile: number[], period: number): number {
+  const angle = (2 * Math.PI) / period;
+  const cosine = Math.cos(angle);
+  const sine = Math.sin(angle);
+  let x = 1;
+  let y = 0;
+  let real = 0;
+  let imaginary = 0;
+  let total = 0;
+  for (const weight of profile) {
+    real += weight * x;
+    imaginary += weight * y;
+    total += weight;
+    const next = x * cosine - y * sine;
+    y = x * sine + y * cosine;
+    x = next;
+  }
+  return total ? Math.hypot(real, imaginary) / total : 0;
+}
+
 function periods(profile: number[], boundaries: number[]): number[] {
   const gaps = boundaries.slice(1).map((v, i) => v - boundaries[i]!);
-  if (!gaps.length) return [];
+  if (boundaries.length < 2) return [];
   const sorted = [...gaps].sort((a, b) => a - b);
   const small = sorted.filter((v) => v <= sorted[0]! * 1.4);
   const candidates = [small[Math.floor(small.length / 2)]!];
-  // A projection autocorrelation also supplies candidates when edges are missing.
-  let previous = 0;
-  let current = 0;
-  for (let lag = 2; lag < Math.min(160, profile.length / 3); lag += 1) {
-    let next = 0;
-    for (let i = 0; i + lag < profile.length; i += 1)
-      next += profile[i]! * profile[i + lag]!;
-    if (current > previous && current >= next && current > 0)
-      candidates.push(lag - 1);
-    previous = current;
-    current = next;
+  // Phase coherence measures whether edge energy really repeats at this period.
+  // Sharp combs have equal harmonics; keep the coarsest strong fundamental.
+  let bestPeriod = 0;
+  let bestScore = 0;
+  const size = profile.length;
+  for (
+    let cycles = Math.max(3, size / 160);
+    cycles <= size / 4;
+    cycles += 0.25
+  ) {
+    const period = size / cycles;
+    const score = periodicity(profile, period);
+    if (
+      score > bestScore + 0.03 ||
+      (score >= bestScore - 0.015 && period > bestPeriod)
+    ) {
+      bestPeriod = period;
+      bestScore = score;
+    }
   }
-  return candidates.filter((v) => v >= 4).slice(0, 12);
+  if (bestScore >= 0.55) {
+    let period = bestPeriod;
+    let score = periodicity(profile, period);
+    for (const radius of [0.25, 0.04, 0.008]) {
+      const cycles = size / period;
+      for (let shift = -4; shift <= 4; shift += 1) {
+        const candidate = size / (cycles + (shift * radius) / 4);
+        const value = periodicity(profile, candidate);
+        if (value > score) {
+          period = candidate;
+          score = value;
+        }
+      }
+    }
+    candidates.push(period);
+  }
+  return candidates.filter((v) => v >= 4 && periodicity(profile, v) >= 0.55);
 }
 
 function axisLines(
   size: number,
   boundaries: number[],
   period: number,
-): number[] {
+): { lines: number[]; error: number } {
   const anchor = boundaries[0] ?? 0;
   const indices = boundaries.map((v) => Math.round((v - anchor) / period));
   const meanN =
@@ -211,6 +264,12 @@ function axisLines(
   const fitted = denominator ? numerator / denominator : period;
   if (Math.abs(fitted - period) < period * 0.12) period = fitted;
   const offset = boundaries.length ? meanX - meanN * period : 0;
+  const error =
+    boundaries.reduce(
+      (sum, v, i) =>
+        sum + Math.abs(v - (offset + indices[i]! * period)) / period,
+      0,
+    ) / Math.max(1, boundaries.length);
   const first = Math.ceil(-offset / period - 0.5);
   const last = Math.ceil((size - offset) / period - 0.5);
   const lines = Array.from(
@@ -218,18 +277,27 @@ function axisLines(
     (_, i) => offset + (first + i) * period,
   );
   // Snap the uniform mesh to a nearby measured edge, including fractional cells.
-  return lines.map((line) => {
-    const closest = boundaries.reduce(
-      (best, v) => (Math.abs(v - line) < Math.abs(best - line) ? v : best),
-      line + period,
-    );
-    return Math.abs(closest - line) < Math.min(2, period * 0.16)
-      ? closest
-      : line;
-  });
+  return {
+    error,
+    lines: lines.map((line) => {
+      const closest = boundaries.reduce(
+        (best, v) => (Math.abs(v - line) < Math.abs(best - line) ? v : best),
+        line + period,
+      );
+      return Math.abs(closest - line) < Math.min(2, period * 0.16)
+        ? closest
+        : line;
+    }),
+  };
 }
 
-function uniformity(image: PixelImage, x: number[], y: number[]): number {
+function uniformity(
+  image: PixelImage,
+  x: number[],
+  y: number[],
+  confirmedX = false,
+  confirmedY = false,
+): number {
   let score = 0;
   let count = 0;
   const strideX = Math.max(1, Math.floor((x.length - 1) / 30));
@@ -241,8 +309,8 @@ function uniformity(image: PixelImage, x: number[], y: number[]): number {
         (x[col]! + x[col + 1]!) / 2,
         (y[row]! + y[row + 1]!) / 2,
       );
-      for (const fy of [0.24, 0.5, 0.76]) {
-        for (const fx of [0.24, 0.5, 0.76]) {
+      for (const fy of confirmedY ? [0.5] : [0.24, 0.5, 0.76]) {
+        for (const fx of confirmedX ? [0.5] : [0.24, 0.5, 0.76]) {
           score += distance(
             center,
             pixel(
@@ -274,27 +342,62 @@ export function manualMesh(
   };
 }
 
-export function detectMesh(image: PixelImage): ImageMesh | null {
+export function inspectImageGrid(
+  image: PixelImage,
+  hint: GridHint = {},
+): GridInspection {
   validatePixels(image);
+  if (hint.cols !== undefined) validateEditorSize(hint.cols, 1);
+  if (hint.rows !== undefined) validateEditorSize(1, hint.rows);
   const [px, py] = profiles(image);
   const bx = peaks(px);
   const by = peaks(py);
   const cx = periods(px, bx);
   const cy = periods(py, by);
+  // Other-axis periods are harmonic hints for missing edges, never substitutes
+  // for independent periodicity and phase checks on the axis being detected.
+  const hintedX =
+    hint.cols === undefined ? null : manualMesh(image, hint.cols, 1).x;
+  const hintedY =
+    hint.rows === undefined ? null : manualMesh(image, 1, hint.rows).y;
+  const xCandidates = hintedX
+    ? [image.width / hint.cols!]
+    : [...new Set([...cx, ...cy])];
+  const yCandidates = hintedY
+    ? [image.height / hint.rows!]
+    : [...new Set([...cy, ...cx])];
   let best: { mesh: ImageMesh; score: number; area: number } | null = null;
-  for (const sx of [...new Set([...cx.slice(0, 5), ...cy.slice(0, 2)])]) {
-    for (const sy of [...new Set([...cy.slice(0, 5), ...cx.slice(0, 2)])]) {
-      if (Math.max(sx, sy) / Math.min(sx, sy) > 1.35) continue;
-      const x = axisLines(image.width, bx, sx);
-      const y = axisLines(image.height, by, sy);
-      if (x.length > 1001 || y.length > 1001) continue;
-      const score = uniformity(image, x, y);
+  for (const sx of xCandidates) {
+    if (!hintedX && (bx.length < 2 || periodicity(px, sx) < 0.55)) continue;
+    for (const sy of yCandidates) {
+      if (!hintedY && (by.length < 2 || periodicity(py, sy) < 0.55)) continue;
+      if (Math.max(sx, sy) / Math.min(sx, sy) > 2.51) continue;
+      const fitX = hintedX
+        ? { lines: hintedX, error: 0 }
+        : axisLines(image.width, bx, sx);
+      const fitY = hintedY
+        ? { lines: hintedY, error: 0 }
+        : axisLines(image.height, by, sy);
+      const x = fitX.lines;
+      const y = fitY.lines;
+      if (x.length < 2 || y.length < 2 || x.length > 1001 || y.length > 1001)
+        continue;
+      const fittedX = (x.at(-1)! - x[0]!) / (x.length - 1);
+      const fittedY = (y.at(-1)! - y[0]!) / (y.length - 1);
+      if (
+        (!hintedX && periodicity(px, fittedX) < 0.55) ||
+        (!hintedY && periodicity(py, fittedY) < 0.55)
+      )
+        continue;
+      const score =
+        uniformity(image, x, y, Boolean(hintedX), Boolean(hintedY)) +
+        50 * (fitX.error + fitY.error);
       const area = sx * sy;
       if (
         score < 16 &&
         (!best ||
-          score < best.score - 4 ||
-          (score <= best.score + 4 && area > best.area))
+          score < best.score - 0.05 ||
+          (score <= best.score + 0.05 && area > best.area))
       )
         best = {
           mesh: { cols: x.length - 1, rows: y.length - 1, x, y },
@@ -303,17 +406,48 @@ export function detectMesh(image: PixelImage): ImageMesh | null {
         };
     }
   }
-  if (best) return best.mesh;
-  if (image.width <= 200 && image.height <= 200) {
+  if (best)
+    return {
+      mesh: best.mesh,
+      kind: 'grid',
+      small:
+        Math.min(image.width / best.mesh.cols, image.height / best.mesh.rows) <
+        6,
+    };
+  if (
+    !hint.cols &&
+    !hint.rows &&
+    cx.length === 0 &&
+    cy.length === 0 &&
+    image.width <= 200 &&
+    image.height <= 200 &&
+    px.some((v) => v > 0) &&
+    py.some((v) => v > 0)
+  ) {
     const nativeColors = new Set<string>();
     for (let i = 0; i < image.data.length; i += 4) {
       nativeColors.add(Array.from(image.data.subarray(i, i + 4)).join(','));
       if (nativeColors.size > 12) break;
     }
     if (nativeColors.size >= 2 && nativeColors.size <= 12)
-      return manualMesh(image, image.width, image.height);
+      return {
+        mesh: manualMesh(image, image.width, image.height),
+        kind: 'grid',
+        small: true,
+      };
   }
-  return null;
+  return {
+    mesh: null,
+    kind:
+      px.every((v) => v === 0) && py.every((v) => v === 0)
+        ? 'photo'
+        : 'uncertain',
+    small: false,
+  };
+}
+
+export function detectMesh(image: PixelImage): ImageMesh | null {
+  return inspectImageGrid(image).mesh;
 }
 
 // Two offset histograms keep JPEG noise around a bin boundary in one cluster.
