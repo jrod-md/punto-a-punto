@@ -171,11 +171,17 @@ export default function ImageImport({
   useEffect(() => {
     mounted.current = true;
     jobs.current = new ImageJobs();
-    if (initialFile && !opened.current) {
-      opened.current = true;
-      void openFile(initialFile);
-    }
+    // Defer the first file so StrictMode's setup/cleanup rehearsal cannot
+    // consume it with a worker that has already been disposed.
+    const firstFile =
+      initialFile && !opened.current
+        ? setTimeout(() => {
+            opened.current = true;
+            void openFile(initialFile);
+          }, 0)
+        : undefined;
     return () => {
+      clearTimeout(firstFile);
       mounted.current = false;
       jobs.current?.dispose();
       jobs.current = null;
