@@ -16,6 +16,7 @@ Abre la dirección local indicada por Vite. En el primer inicio se crean los dos
 ```powershell
 npm run typecheck
 npm run lint
+npm run format:check
 npm test
 npm run build
 ```
@@ -55,13 +56,23 @@ No se puede borrar una muestra que use algún proyecto: el aviso enumera cuáles
 
 «Hilo» abre la estimación para los colores usados, el total y los ovillos cuando se conoce su metraje. Usa las fórmulas de `src/core/yarn.ts`. El cálculo se hace sobre el trazo confirmado, nunca sobre sus movimientos intermedios. El total suma los metros mostrados por color, ya redondeados hacia arriba. Puedes aplicar otro margen o llevar los colores usados en todas las filas. Los perfiles aproximados lo advierten y ofrecen ir a calibrar.
 
+## Importar una imagen
+
+Al crear un proyecto, pulsa «Desde una imagen». En un proyecto abierto, usa «Ajustes → Importar imagen». El asistente permite recortar con dos esquinas o medidas, girar 90°, revisar la rejilla detectada, corregir sus columnas y filas y elegir de 2 a 12 colores. También puedes fusionarlos, renombrarlos y elegir el fondo.
+
+En pixel art se recuperan los cuadros reales y el color de su zona central, evitando las líneas y los bordes. Las fotos y los degradados muestran un aviso: eliges el ancho en puntos y la muestra determina las filas para conservar la proporción al tejer. Ese resultado necesitará retoques. La vista previa muestra la proporción física del punto y las medidas en centímetros.
+
+Antes de colocarlo, elige la pieza y la escala ×1, ×2, ×3 o «Ajustar al ancho» con margen. La app informa los puntos de fondo en cada lado. Si no cabe, ofrece agrandar la pieza o reducir el dibujo; las escalas no enteras avisan de la pérdida de detalle. Una paleta combinada de más de 12 colores requiere fusionar antes de continuar. En el editor, el dibujo se añade centrado sobre el existente y toda la importación se deshace en un solo paso.
+
+Las imágenes se procesan en un worker del dispositivo y se reducen a un máximo de 1600 píxeles por lado antes del análisis. El archivo original no se guarda en el proyecto ni se sube. La importación funciona sin conexión tras preparar la PWA. La [validación del encargo 5](docs/VALIDACION-05.md) incluye la captura generada, el centrado y los resultados locales y de Cloudflare.
+
 ## Llevarse el patrón y seguir el tejido
 
-En «Ajustes», pulsa «Ver patrón». Muestra las medidas, la muestra usada, la leyenda y la misma estimación de hilo del editor. Cada fila tiene su línea, con la fila 1 primero. En plano, las filas impares se leen de derecha a izquierda y las pares al revés; en redondo, todas las vueltas se leen de derecha a izquierda.
+En la barra superior del editor, pulsa «Ver patrón». Muestra las medidas, la muestra usada, la leyenda y la misma estimación de hilo del editor, con los puntos por color junto a los metros. Cada fila tiene su línea, con la fila 1 primero. En plano, las filas impares se leen de derecha a izquierda y las pares al revés; en redondo, todas las vueltas se leen de derecha a izquierda.
 
 Puedes copiar el texto completo, descargar un PNG numerado con leyenda o descargar un PDF con medidas, leyenda, hilo, cuadrícula y texto. El PDF conserva la proporción de la muestra y divide la cuadrícula en páginas con celdas de al menos 2,4 mm en ambas dimensiones; cada página repite la numeración y señala sus rangos. Con la muestra de 4 mm, 64 × 72 cabe en una página de cuadrícula y 200 × 200 ocupa 12. El resto de páginas contiene el encabezado y las instrucciones.
 
-«Modo tejer» se abre desde «Ajustes» o «Tejer» en la lista de proyectos. La fila actual aparece resaltada; los puntos hechos tienen una marca verde y los pendientes conservan el color original. Un dedo desplaza la cuadrícula, dos dedos desplazan y amplían. El botón grande avanza 1, 5, 10 puntos o el tramo del color actual. El paso inicial es 5 y tu elección se guarda.
+«Modo tejer» se abre desde la barra superior del editor o «Tejer» en la lista de proyectos. La fila actual aparece resaltada; los puntos hechos tienen una marca verde y los pendientes conservan el color original. Un dedo desplaza la cuadrícula, dos dedos desplazan y amplían. El botón grande avanza 1, 5, 10 puntos o el tramo del color actual. El paso inicial es 5 y tu elección se guarda.
 
 El avance se detiene al final de la fila. El siguiente toque pide confirmar la siguiente. «Deshacer» después de cruzar vuelve al final de la fila anterior. También puedes avanzar un punto, terminar la fila, volver a la anterior o reiniciar con confirmación. El progreso se guarda automáticamente. El modo tejer pide mantener la pantalla encendida cuando el navegador lo permite; si no, sigue funcionando con normalidad.
 
@@ -101,6 +112,6 @@ Con Vite abierto, visita las siguientes rutas locales y pulsa «Ejecutar comprob
 - `/scripts/export-check.html`: genera y abre PNG reales de 64 × 72, 200 × 200 y 1000 × 1000, comprobando resolución y el límite de 4096 px.
 - `/scripts/save-failure-check.html`: abre el proyecto de ejemplo y añade un color. El primer guardado falla a propósito y muestra el aviso; la siguiente edición permite recuperarse. No usa la base de la aplicación.
 
-Estas páginas son herramientas de validación para desarrollo y no se incluyen en la compilación de la aplicación. El informe del encargo 4 está en [docs/VALIDACION-04.md](docs/VALIDACION-04.md). Importar imagen continúa fuera del alcance.
+Estas páginas son herramientas de validación para desarrollo y no se incluyen en la compilación de la aplicación. Los informes están en [docs/VALIDACION-04.md](docs/VALIDACION-04.md) y [docs/VALIDACION-05.md](docs/VALIDACION-05.md).
 
 Vite, React, TypeScript, Vitest y ESLint implementan las herramientas solicitadas. Se añadió [jsPDF 4.2.1](https://github.com/parallax/jsPDF), la dependencia autorizada para generar el PDF localmente con cuadrícula vectorial y varias páginas. El módulo se importa solo al pulsar «Descargar PDF»; sus archivos se preparan en la caché para permitir esa acción sin conexión. Se incluyen las fuentes Noto Sans y Noto Sans Symbols para conservar los acentos y las flechas del patrón, con su licencia OFL en `src/assets/fonts/OFL.txt`. No se descargan fuentes ni datos del tejido desde servicios externos durante el uso.
