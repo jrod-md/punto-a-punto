@@ -1,0 +1,60 @@
+# Validación del encargo 4
+
+Se implementaron patrón escrito, exportaciones, modo tejer y PWA. No se modificaron `docs/SPEC.md` ni los encargos. No se empezó a importar imágenes.
+
+## Criterios comprobados
+
+| Criterio | Resultado y evidencia |
+|---|---|
+| Patrón de 10 puntos, con 3 A, 2 B, 5 A de izquierda a derecha | La pantalla muestra exactamente `Fila 1 (← derecha a izquierda): 5 A, 2 B, 3 A — 10 puntos`. Pruebas puras y recorrido real desde lista, editor y patrón. Las filas idénticas conservan su propia línea. |
+| Encabezado, leyenda e hilo | Tamaño en puntos/filas y centímetros, muestra, construcción, letras y colores. El hilo usa `yarn.ts`, con sus advertencias y total por colores redondeados, como el panel del editor. |
+| Copiar y PNG | La acción de copiar termina con su aviso de éxito; el lector del portapapeles de la herramienta no permitió verificar el texto pegado. El PNG descargado se abrió e inspeccionó: encabezado, numeración y leyenda completos. Comprobaciones reales de exportación: 64 × 72 → 1632 × 1939 px; 200 × 200 y 1000 × 1000 → 3451 × 3384 px; todos abren y respetan la resolución mínima y 4096 px por lado. |
+| PDF 64 × 72 | PDF real generado por la función usada en la app: 4 páginas totales, 1 de cuadrícula. También se descargó desde la PWA con el servidor apagado, se abrió y se renderizó. Metadatos y filas 1–72 completos, flechas y acentos conservados. |
+| PDF 200 × 200 | 19 páginas totales, 12 de cuadrícula con la muestra de comprobación. Renderizado y revisión de encabezado, numeración, bordes de los mosaicos y texto. La prueba verifica las flechas incrustadas y que la cuadrícula ocupa varias páginas. |
+| Avance por tramo | En navegador: 5, 2 y 3 puntos; se detiene en el final de fila. La siguiente pulsación pide confirmación. Pruebas adicionales de tramos parciales y sentido plano/redondo. |
+| Paso 5 en 12 puntos | En navegador: 5, 5 y 2; el siguiente toque muestra la confirmación de fila. Cancelar conserva el progreso. |
+| Deshacer tras cruzar | Confirmar fila 2 y deshacer vuelve al final de fila 1. Comprobado en la interfaz y con funciones puras. |
+| Reapertura | Se guardó fila 7, punto 10; se cerró la pestaña y se abrió otra. La posición, los proyectos y el paso elegido se conservaron, también con el servidor apagado. |
+| Final, reinicio y límites | Mensaje de pieza terminada al terminar la última fila. Cancelar el reinicio conserva el final; confirmar vuelve a fila 1, punto 1. Pruebas de dimensiones de una celda, ajuste tras recortar y máximo de 100 pasos de deshacer. |
+| Móvil 375 × 812 | Documento de 375 × 812 sin scroll de página. Todos los botones y el selector tienen al menos 44 × 44 px; el botón principal mide 64 px de alto. Captura revisada de fila 7, punto 10, con fila resaltada y puntos completados diferenciados. Sin errores de consola en los recorridos de tejido y PDF sin conexión. |
+| Datos anteriores | 14 comprobaciones de IndexedDB real, 0 fallidas: migración v1 → v2, conservación de proyectos y muestras, `Uint8Array`, final de fila, paso por color, fecha de respaldo y errores de escritura/importación. Se eliminaron las bases aisladas de prueba. |
+| Canvas existente | 9 comprobaciones, 0 fallidas. Conserva trazo, cancelación, gestos, desplazamiento y zoom. Los movimientos no recorren ni copian toda la cuadrícula. Las mediciones son de este equipo, no de un teléfono físico. |
+| Offline y actualización | `npm run preview` sirvió el build desde `/`. Tras la primera visita, se detuvo el servidor y se abrió una pestaña nueva: lista, editor, tejido y PDF funcionan con los datos intactos. Una actualización preparada se aplicó en la siguiente apertura y conservó los proyectos. Pruebas del worker cubren instalación incompleta, espera, activación, cachés antiguas, solicitudes CORS con `Vary: Origin` y peticiones ajenas. |
+| Instalación de escritorio | Pendiente de verificación. La automatización de Brave se detuvo por no poder identificar la URL con suficiente certeza; no se completó la instalación ni se afirma que haya pasado ese criterio. El navegador integrado permitió probar la reapertura offline, pero no ofrece el control de instalación. |
+| iPhone físico | Pendiente: no hay un iPhone conectado. Manifiesto, iconos, etiquetas Apple, zonas seguras, campos de 16 px y prevención del zoom por doble toque están implementados. El aviso único de Safari y las APIs opcionales tienen pruebas; no sustituye verificar Safari en el dispositivo. |
+
+## Comandos requeridos
+
+Ejecutados sobre la entrega final: los cuatro terminaron con código 0.
+
+| Comando | Salida resumida |
+|---|---|
+| `npm run typecheck` | Sin errores de TypeScript. |
+| `npm run lint` | Sin errores ni advertencias. |
+| `npm test` | 172 pruebas correctas en 19 archivos. |
+| `npm run build` | 313 módulos; build de producción generado en `dist`, PDF separado del módulo principal y service worker emitido. |
+
+```powershell
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
+
+## Decisiones
+
+- Se añadió **jsPDF 4.2.1** para generar el PDF localmente, sin servidor, con cuadrícula vectorial y paginación. La importación del módulo ocurre al pedir el PDF. Los archivos se incluyen en la preparación offline para permitir esa primera exportación sin conexión. Las fuentes Noto Sans y Noto Sans Symbols, incluidas con su licencia OFL, conservan los caracteres españoles y las flechas.
+- El PDF usa A4 y celdas de al menos **2,4 mm** en ambas dimensiones, conservando la proporción de la muestra. Los mosaicos empiezan en las filas inferiores y repiten sus rangos y numeración.
+- El PNG limita la cuadrícula a unos **10 millones de píxeles** y la imagen completa a **4096 px por lado** por compatibilidad con iOS. Los casos extremos muestran un error en español y ofrecen PDF; no modifican el diseño. El encabezado del PNG se calcula sin generar el texto de todas las filas ni estimar el hilo innecesariamente.
+- `progress.stitch` representa el próximo punto: 1 = cero hechos; `cols + 1` = fila completa. El JSON pasa a **versión 2** para ese final y para `tapStep: 'color-run'`; sigue leyendo versión 1. Los valores numéricos antiguos se conservan; si no corresponden a 1, 5 o 10, la interfaz de tejido empieza en 5.
+- Deshacer guarda hasta 100 posiciones durante la sesión. El progreso y el paso sí se conservan entre aperturas. Un recorte ajusta fila y punto al rango válido.
+- IndexedDB v2 añade `settings` sin reemplazar proyectos o muestras. El recordatorio toma como referencia el último JSON solicitado o importado; editar no pospone el aviso. La fecha de exportación registra una solicitud de descarga, porque la web no puede confirmar que la usuaria conserve el archivo. En proyectos antiguos sin metadatos, la referencia inicial es su fecha de última edición.
+- Las actualizaciones esperan hasta la próxima apertura. La limpieza solo toca cachés de archivos de la app; conserva recursos antiguos mientras otras ventanas puedan usarlos y nunca borra IndexedDB. La búsqueda de archivos estáticos ignora `Vary: Origin`, porque `preview` añade esa cabecera y los archivos del mismo origen no varían según ella.
+- Las peticiones de almacenamiento persistente y pantalla encendida fallan en silencio cuando no están disponibles o se niegan. La consulta del worker tiene un límite de espera para no bloquear indefinidamente el inicio.
+
+## Repetir las comprobaciones de dispositivo
+
+1. Ejecutar el build y abrir `npm run preview` desde la raíz. Crear o importar un proyecto, entrar en modo tejer y avanzar.
+2. Instalar desde la acción del navegador de escritorio. Esperar a que termine la preparación inicial, cerrar la app, detener el servidor y volver a abrir la aplicación instalada. Comprobar el proyecto y la posición.
+3. En iPhone, abrir el enlace HTTPS publicado en Safari; comprobar el aviso y agregar al inicio. Revisar muesca, barra inferior, foco de campos, doble toque, exportaciones y reapertura sin conexión.
+4. Para IndexedDB, canvas y PNG, usar `npm run dev` y las páginas `/scripts/storage-check.html`, `/scripts/canvas-check.html` y `/scripts/export-check.html`. No se incluyen en el build de producto.

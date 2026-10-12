@@ -1,6 +1,6 @@
 # Punto a punto
 
-Herramienta local de tapestry crochet. El nombre es provisional. Incluye proyectos, editor de cuadrícula, calibración de muestras sin báscula y estimación de hilo por color. Los datos se guardan en IndexedDB del navegador; un archivo JSON es el respaldo para otro navegador o dispositivo. No usa servicios externos ni envía datos del tejido a servidores.
+Herramienta local de tapestry crochet. El nombre es provisional. Incluye proyectos, editor de cuadrícula, calibración de muestras sin báscula, estimación de hilo, patrón escrito, exportación PNG/PDF y modo tejer. Es una aplicación web instalable que funciona sin conexión después de la primera visita. Los datos se guardan en IndexedDB del navegador; un archivo JSON es el respaldo para otro navegador o dispositivo. No usa servicios externos ni envía datos del tejido a servidores.
 
 ## Ejecutar
 
@@ -20,16 +20,24 @@ npm test
 npm run build
 ```
 
-La compilación queda en `dist/`. `npm test` ejecuta Vitest una sola vez, sin modo de espera.
+La compilación queda en `dist/`. `npm test` ejecuta Vitest una sola vez, sin modo de espera. Para probar el build, el service worker y el funcionamiento desde la raíz:
+
+```powershell
+npm run preview
+```
+
+En Cloudflare Pages, usa `npm run build`, directorio de salida `dist` y la raíz del dominio. La PWA necesita HTTPS en producción; el origen local del PC también permite comprobarla. No hace falta un backend.
 
 ## Abrir desde un celular por wifi
 
 1. Conecta el PC y el celular al mismo wifi.
 2. En PowerShell, desde esta carpeta, ejecuta `npm run dev:phone`. Mantén esa terminal abierta. Para elegir un puerto fijo puedes usar `npm run dev:phone -- --port 5188 --strictPort`.
-3. Copia la dirección que Vite muestra como `Network` para la conexión wifi del PC y ábrela en el navegador del celular. Por ejemplo, si muestra `http://192.168.1.20:5173/`, abre esa dirección completa. `localhost` y `127.0.0.1` en el celular apuntan al propio celular, no al PC. Si hay varias direcciones, `ipconfig` muestra la dirección IPv4 del adaptador wifi.
+3. Copia la dirección que Vite muestra como `Network` para la conexión wifi del PC y ábrela completa en el navegador del celular. `localhost` en el celular apunta al propio celular, no al PC. Si hay varias direcciones, `ipconfig` muestra la dirección IPv4 del adaptador wifi.
 4. Si no abre, comprueba que ambos equipos están en la misma red y que el router no aísla a sus clientes. Si Windows pide permitir Node.js, el acceso necesario es a la red privada de ese wifi. No hace falta desactivar el firewall.
 
 El servidor de desarrollo entrega los archivos de la aplicación; el tejido se guarda en el navegador del celular. Los datos del PC no aparecen automáticamente: exporta e importa un JSON para llevar un proyecto al celular. Conserva la misma dirección y puerto para volver a los mismos datos. Termina el servidor con `Ctrl+C` cuando acabes.
+
+La conexión HTTP por wifi sirve para revisar el editor. Para instalar en iPhone y comprobar la PWA, usa el enlace HTTPS publicado.
 
 ## Usar el editor
 
@@ -47,6 +55,24 @@ No se puede borrar una muestra que use algún proyecto: el aviso enumera cuáles
 
 «Hilo» abre la estimación para los colores usados, el total y los ovillos cuando se conoce su metraje. Usa las fórmulas de `src/core/yarn.ts`. El cálculo se hace sobre el trazo confirmado, nunca sobre sus movimientos intermedios. El total suma los metros mostrados por color, ya redondeados hacia arriba. Puedes aplicar otro margen o llevar los colores usados en todas las filas. Los perfiles aproximados lo advierten y ofrecen ir a calibrar.
 
+## Llevarse el patrón y seguir el tejido
+
+En «Ajustes», pulsa «Ver patrón». Muestra las medidas, la muestra usada, la leyenda y la misma estimación de hilo del editor. Cada fila tiene su línea, con la fila 1 primero. En plano, las filas impares se leen de derecha a izquierda y las pares al revés; en redondo, todas las vueltas se leen de derecha a izquierda.
+
+Puedes copiar el texto completo, descargar un PNG numerado con leyenda o descargar un PDF con medidas, leyenda, hilo, cuadrícula y texto. El PDF conserva la proporción de la muestra y divide la cuadrícula en páginas con celdas de al menos 2,4 mm en ambas dimensiones; cada página repite la numeración y señala sus rangos. Con la muestra de 4 mm, 64 × 72 cabe en una página de cuadrícula y 200 × 200 ocupa 12. El resto de páginas contiene el encabezado y las instrucciones.
+
+«Modo tejer» se abre desde «Ajustes» o «Tejer» en la lista de proyectos. La fila actual aparece resaltada; los puntos hechos tienen una marca verde y los pendientes conservan el color original. Un dedo desplaza la cuadrícula, dos dedos desplazan y amplían. El botón grande avanza 1, 5, 10 puntos o el tramo del color actual. El paso inicial es 5 y tu elección se guarda.
+
+El avance se detiene al final de la fila. El siguiente toque pide confirmar la siguiente. «Deshacer» después de cruzar vuelve al final de la fila anterior. También puedes avanzar un punto, terminar la fila, volver a la anterior o reiniciar con confirmación. El progreso se guarda automáticamente. El modo tejer pide mantener la pantalla encendida cuando el navegador lo permite; si no, sigue funcionando con normalidad.
+
+## Instalar y conservar los diseños
+
+En Safari de iPhone, abre el enlace HTTPS, pulsa Compartir y elige «Agregar a pantalla de inicio». La app ofrece una vez un aviso que explica este recorrido y se puede cerrar. El icono añadido abre Punto a punto a pantalla completa. En un navegador de escritorio compatible, usa su acción de instalar aplicación.
+
+Después de la primera visita y la preparación de los archivos, vuelve a abrir la app sin conexión para comprobarlo. El PDF también funciona sin conexión. Las nuevas versiones se descargan en segundo plano y se aplican en la siguiente apertura; los proyectos y las muestras permanecen en IndexedDB. La instalación y la petición de almacenamiento persistente mejoran la conservación, pero no sustituyen el respaldo JSON.
+
+La lista recuerda exportar cuando pasan más de 7 días sin respaldo. Editar un proyecto no reinicia ese plazo. Al exportar se registra la fecha de solicitud de descarga; el navegador no permite saber si finalmente conservaste el archivo. Importar un JSON también registra la fecha, porque ya existe ese respaldo. Guarda los archivos fuera del almacenamiento de la web.
+
 ## Convenciones
 
 - `GaugeProfile` y `Project` incluyen `id` para relacionar los datos. La paleta admite de 1 a 12 colores.
@@ -59,7 +85,10 @@ No se puede borrar una muestra que use algún proyecto: el aviso enumera cuáles
 - Los identificadores usan bytes de `crypto.getRandomValues`, compatible con el acceso por HTTP en la red local; no necesitan HTTPS ni una biblioteca nueva.
 - Los valores negativos, no finitos, divisores nulos y cuadrículas mal formadas producen errores en español. Un tamaño objetivo de cero se limita a una celda, como indica la fórmula.
 - IndexedDB guarda las celdas como `Uint8Array` (un byte por celda). La interfaz usa repositorios con `list`, `get`, `save` y `remove`; las importaciones de proyecto y perfil se escriben en una transacción conjunta.
-- El respaldo JSON de versión 1 incluye el proyecto completo, la fecha de última edición y su perfil. Una importación idéntica conserva todos los campos; reemplazar un proyecto distinto requiere confirmación. Un perfil con el mismo identificador y otros valores se rechaza para proteger los proyectos existentes.
+- El respaldo JSON de versión 2 incluye el proyecto completo, la fecha de última edición, el progreso, el paso y su perfil. Se siguen aceptando los archivos de versión 1. Una importación idéntica conserva todos los campos; reemplazar un proyecto distinto requiere confirmación. Un perfil con el mismo identificador y otros valores se rechaza para proteger los proyectos existentes.
+- `progress.stitch` es el próximo punto por tejer: 1 significa cero puntos hechos y `cols + 1`, fila completa. La interfaz muestra el último punto al completar la fila. `tapStep` admite números y `'color-run'`; la interfaz ofrece 1, 5, 10 y tramo de color. El progreso se limita a las dimensiones tras editar. El historial de deshacer conserva 100 avances durante la sesión; el progreso y el paso sí se guardan entre aperturas.
+- La base local pasa de versión 1 a 2 sin reemplazar proyectos ni muestras. La nueva tabla `settings` guarda el aviso de instalación y las fechas del respaldo. Las cachés del service worker solo contienen archivos de la aplicación. Se conservan los archivos de versiones anteriores mientras otras ventanas puedan necesitarlos.
+- El PNG limita la imagen a 4096 px por lado y unos 10 millones de píxeles de cuadrícula, dejando espacio para el encabezado y la leyenda. Se eligió ese límite por la [restricción de canvas en iOS documentada por MDN](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/canvas#maximum_canvas_size). En proporciones extremas o nombres excesivamente largos que no permiten una imagen legible, la exportación explica la limitación en español; el diseño y el respaldo JSON se conservan.
 - El editor admite de 1 a 1000 puntos y de 1 a 1000 filas; los respaldos se limitan a 16 MB para acotar el uso de memoria. Las numeraciones se espacian al alejar la vista y muestran cada celda al acercarla.
 - Mover una selección incluye su fondo y reemplaza las celdas de destino; puede deshacerse. Al reducir medidas, el diseño se desplaza lo mínimo para caber. Duplicar conserva los datos y asigna otro identificador, nombre y fecha.
 
@@ -69,8 +98,9 @@ Con Vite abierto, visita las siguientes rutas locales y pulsa «Ejecutar comprob
 
 - `/scripts/storage-check.html`: IndexedDB real en una base aislada, respaldo idéntico, errores y limpieza de los datos de prueba.
 - `/scripts/canvas-check.html`: trazo, gestos sintéticos y tiempos del canvas de 200 × 200. No sustituye una prueba en un teléfono físico.
+- `/scripts/export-check.html`: genera y abre PNG reales de 64 × 72, 200 × 200 y 1000 × 1000, comprobando resolución y el límite de 4096 px.
 - `/scripts/save-failure-check.html`: abre el proyecto de ejemplo y añade un color. El primer guardado falla a propósito y muestra el aviso; la siguiente edición permite recuperarse. No usa la base de la aplicación.
 
-Estas páginas son herramientas de validación para desarrollo y no se incluyen en la compilación de la aplicación. Patrón escrito, PDF, modo tejer, importación de imagen y PWA corresponden a otros encargos.
+Estas páginas son herramientas de validación para desarrollo y no se incluyen en la compilación de la aplicación. El informe del encargo 4 está en [docs/VALIDACION-04.md](docs/VALIDACION-04.md). Importar imagen continúa fuera del alcance.
 
-Vite, React, TypeScript, Vitest y ESLint implementan las herramientas solicitadas; los paquetes de tipos y complementos incluidos permiten usarlas juntas. No se agregan bibliotecas de producto.
+Vite, React, TypeScript, Vitest y ESLint implementan las herramientas solicitadas. Se añadió [jsPDF 4.2.1](https://github.com/parallax/jsPDF), la dependencia autorizada para generar el PDF localmente con cuadrícula vectorial y varias páginas. El módulo se importa solo al pulsar «Descargar PDF»; sus archivos se preparan en la caché para permitir esa acción sin conexión. Se incluyen las fuentes Noto Sans y Noto Sans Symbols para conservar los acentos y las flechas del patrón, con su licencia OFL en `src/assets/fonts/OFL.txt`. No se descargan fuentes ni datos del tejido desde servicios externos durante el uso.
