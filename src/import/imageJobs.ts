@@ -1,6 +1,8 @@
 import type {
   Crop,
   ImageMesh,
+  GridHint,
+  GridInspection,
   ImportedDrawing,
   PixelImage,
   Rgba,
@@ -10,6 +12,7 @@ export type ImageJob =
   | { kind: 'decode'; file: File }
   | { kind: 'rotate'; image: PixelImage }
   | { kind: 'detect'; image: PixelImage; crop: Crop }
+  | { kind: 'inspect'; image: PixelImage; hint: GridHint }
   | {
       kind: 'colors';
       samples: Rgba[];
@@ -23,6 +26,7 @@ export interface ImageJobResult {
   image?: PixelImage;
   crop?: Crop;
   mesh?: ImageMesh | null;
+  inspection?: GridInspection;
   drawing?: ImportedDrawing;
   samples?: Rgba[];
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { gauge } from '../core/gauge';
 import { designBounds } from '../core/grid';
 import {
@@ -9,6 +9,7 @@ import {
 } from '../core/imageImport';
 import type {
   Crop,
+  GridInspection,
   ImageMesh,
   ImportedDrawing,
   PixelImage,
@@ -49,6 +50,12 @@ export default function ImageImport({
   const [cropped, setCropped] = useState<PixelImage>();
   const [crop, setCrop] = useState<Crop>();
   const [mesh, setMesh] = useState<ImageMesh>();
+  const [inspection, setInspection] = useState<GridInspection>();
+  const [gridPreview, setGridPreview] = useState<{
+    mesh: ImageMesh;
+    drawing: ImportedDrawing;
+  }>();
+  const [previewPending, setPreviewPending] = useState(false);
   const [photo, setPhoto] = useState(false);
   const [cols, setCols] = useState('20');
   const [rows, setRows] = useState('24');
@@ -77,9 +84,10 @@ export default function ImageImport({
   const request = useRef(0);
   const mounted = useRef(true);
   const drag = useRef<{ corner: 'start' | 'end'; crop: Crop } | null>(null);
+  const confirmedCounts = useRef<{ cols?: number; rows?: number }>({});
   const cropRef = useRef<HTMLDivElement>(null);
   const profile = profiles.find((p) => p.id === profileId)!;
-  const measures = gauge(profile);
+  const { stitchWidthCm, rowHeightCm } = gauge(profile);
   const format = new Intl.NumberFormat('es', { maximumFractionDigits: 2 });
 
   useEffect(() => {
@@ -114,27 +122,85 @@ export default function ImageImport({
     }
   }
 
-  let currentMesh = mesh;
-  let meshError = '';
-  if (cropped && step >= 2) {
+  const meshState = useMemo(() => {
     try {
+      if (!cropped || step < 2) return { mesh, error: '' };
       if (!cols || (!photo && !rows))
         throw new Error('Completa los dos números de cuadros.');
-      currentMesh = photo
-        ? photoMesh(
-            cropped,
-            Number(cols),
-            measures.stitchWidthCm,
-            measures.rowHeightCm,
-          )
+      const value = photo
+        ? photoMesh(cropped, Number(cols), stitchWidthCm, rowHeightCm)
         : mesh?.cols === Number(cols) && mesh.rows === Number(rows)
           ? mesh
           : manualMesh(cropped, Number(cols), Number(rows));
+      return { mesh: value, error: '' };
     } catch (reason) {
-      meshError =
-        reason instanceof Error ? reason.message : 'Revisa la rejilla.';
-      currentMesh = undefined;
+      return {
+        mesh: undefined,
+        error: reason instanceof Error ? reason.message : 'Revisa la rejilla.',
+      };
     }
+  }, [cropped, step, cols, rows, photo, mesh, stitchWidthCm, rowHeightCm]);
+  const currentMesh = meshState.mesh;
+  const meshError = meshState.error;
+
+  useEffect(() => {
+    if (step !== 2 || !cropped || !currentMesh) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      setPreviewPending(true);
+      void jobs
+        .current!.run(
+          { kind: 'sample', image: cropped, mesh: currentMesh, maximum },
+          () => {},
+        )
+        .then((result) => {
+          if (!cancelled && result.drawing)
+            setGridPreview({ mesh: currentMesh, drawing: result.drawing });
+        })
+        .catch(() => {
+          if (!cancelled)
+            setError(
+              'No se pudo preparar la comprobación del dibujo. Revisa los números de cuadros.',
+            );
+        })
+        .finally(() => {
+          if (!cancelled) setPreviewPending(false);
+        });
+    }, 180);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [step, cropped, currentMesh, maximum]);
+
+  function correctCount(axis: 'cols' | 'rows', value: string) {
+    if (axis === 'cols') setCols(value);
+    else setRows(value);
+    const count = Number(value);
+    if (
+      !cropped ||
+      !value ||
+      !Number.isInteger(count) ||
+      count < 1 ||
+      count > 1000
+    ) {
+      delete confirmedCounts.current[axis];
+      return;
+    }
+    confirmedCounts.current[axis] = count;
+    void run({ kind: 'inspect', image: cropped, hint: { [axis]: count } }).then(
+      (result) => {
+        if (!result) return;
+        setMesh(result.mesh ?? undefined);
+        if (axis === 'cols') {
+          if (result.mesh) setRows(String(result.mesh.rows));
+          else if (confirmedCounts.current.rows === undefined) setRows('');
+        } else {
+          if (result.mesh) setCols(String(result.mesh.cols));
+          else if (confirmedCounts.current.cols === undefined) setCols('');
+        }
+      },
+    );
   }
 
   async function readGrid() {
@@ -450,9 +516,14 @@ export default function ImageImport({
                 if (!result?.image) return;
                 setCropped(result.image);
                 setMesh(result.mesh ?? undefined);
-                setPhoto(!result.mesh);
-                setCols(String(result.mesh?.cols ?? 60));
-                setRows(String(result.mesh?.rows ?? 60));
+                setInspection(result.inspection);
+                confirmedCounts.current = {};
+                const isPhoto = result.inspection?.kind === 'photo';
+                setPhoto(isPhoto);
+                setCols(
+                  result.mesh ? String(result.mesh.cols) : isPhoto ? '60' : '',
+                );
+                setRows(result.mesh ? String(result.mesh.rows) : '');
                 setStep(2);
               });
             }}
@@ -469,6 +540,12 @@ export default function ImageImport({
               el ancho en puntos; conservaremos la proporción al tejer. Hará
               falta retocar el resultado en el editor.
             </p>
+          ) : inspection?.kind === 'uncertain' ? (
+            <p className="notice">
+              No pude confirmar una rejilla en ambos ejes. Indica los cuadros de
+              ancho y de alto; con uno de tus números intentaré encontrar el
+              otro. Comprueba el dibujo leído antes de continuar.
+            </p>
           ) : (
             <p>
               Comprueba que las líneas naranjas coinciden con los cuadros.
@@ -476,27 +553,73 @@ export default function ImageImport({
               momento.
             </p>
           )}
-          <ImagePreview image={cropped} mesh={currentMesh} />
+          {!photo &&
+            (inspection?.small ||
+              (currentMesh &&
+                Math.min(
+                  cropped.width / currentMesh.cols,
+                  cropped.height / currentMesh.rows,
+                ) < 6)) && (
+              <p className="notice">
+                La imagen es muy pequeña para leer los cuadros con seguridad
+                (menos de unos 6 px por cuadro). Intenta usar la imagen original
+                en vez de una captura de pantalla del chat. Aun así, puedes
+                comprobar y continuar con esta.
+              </p>
+            )}
+          <div className="mesh-comparison">
+            <section>
+              <h2>Imagen y rejilla</h2>
+              <ImagePreview image={cropped} mesh={currentMesh} />
+            </section>
+            <section aria-label="Comprobación del dibujo leído">
+              <h2>Dibujo leído</h2>
+              {currentMesh &&
+              gridPreview?.mesh === currentMesh &&
+              !previewPending ? (
+                <ImagePreview
+                  drawing={gridPreview.drawing}
+                  stitchRatio={rowHeightCm / stitchWidthCm}
+                />
+              ) : (
+                <p role="status">
+                  {currentMesh
+                    ? 'Leyendo los cuadros para comprobar el dibujo…'
+                    : 'Escribe ambos números para ver el dibujo leído.'}
+                </p>
+              )}
+            </section>
+          </div>
           <div className="import-fields">
             <label>
-              {photo ? 'Ancho del resultado (puntos)' : 'Cuadros de ancho'}
+              {photo
+                ? 'Ancho del resultado (puntos)'
+                : inspection?.kind === 'uncertain'
+                  ? '¿Cuántos cuadros tiene de ancho?'
+                  : 'Cuadros de ancho'}
               <input
                 type="number"
                 min={1}
                 max={1000}
                 value={cols}
-                onChange={(e) => setCols(e.target.value)}
+                onChange={(e) =>
+                  photo
+                    ? setCols(e.target.value)
+                    : correctCount('cols', e.target.value)
+                }
               />
             </label>
             {!photo && (
               <label>
-                Cuadros de alto
+                {inspection?.kind === 'uncertain'
+                  ? '¿Cuántos de alto?'
+                  : 'Cuadros de alto'}
                 <input
                   type="number"
                   min={1}
                   max={1000}
                   value={rows}
-                  onChange={(e) => setRows(e.target.value)}
+                  onChange={(e) => correctCount('rows', e.target.value)}
                 />
               </label>
             )}
@@ -512,6 +635,14 @@ export default function ImageImport({
                 onClick={() => {
                   setPhoto(false);
                   setMesh(undefined);
+                  setInspection({
+                    mesh: null,
+                    kind: 'uncertain',
+                    small: false,
+                  });
+                  confirmedCounts.current = {};
+                  setCols('');
+                  setRows('');
                 }}
               >
                 La imagen sí tiene cuadros: corregir a mano
@@ -679,12 +810,12 @@ export default function ImageImport({
         <>
           <ImagePreview
             drawing={drawing}
-            stitchRatio={measures.rowHeightCm / measures.stitchWidthCm}
+            stitchRatio={rowHeightCm / stitchWidthCm}
           />
           <p>
             {drawing.cols} puntos × {drawing.rows} filas ·{' '}
-            {format.format(drawing.cols * measures.stitchWidthCm)} ×{' '}
-            {format.format(drawing.rows * measures.rowHeightCm)} cm.
+            {format.format(drawing.cols * stitchWidthCm)} ×{' '}
+            {format.format(drawing.rows * rowHeightCm)} cm.
           </p>
           {profileSelect}
           {profile.approximate && (
@@ -831,14 +962,12 @@ export default function ImageImport({
             <>
               <ImagePreview
                 drawing={scaledPreview}
-                stitchRatio={measures.rowHeightCm / measures.stitchWidthCm}
+                stitchRatio={rowHeightCm / stitchWidthCm}
               />
               <p>
                 Dibujo: {bounds?.width ?? 0} puntos × {bounds?.height ?? 0}{' '}
-                filas ·{' '}
-                {format.format((bounds?.width ?? 0) * measures.stitchWidthCm)} ×{' '}
-                {format.format((bounds?.height ?? 0) * measures.rowHeightCm)}{' '}
-                cm.
+                filas · {format.format((bounds?.width ?? 0) * stitchWidthCm)} ×{' '}
+                {format.format((bounds?.height ?? 0) * rowHeightCm)} cm.
               </p>
             </>
           )}
@@ -849,12 +978,12 @@ export default function ImageImport({
                 {grow ? placement.minimumRows : base?.rows} filas ·{' '}
                 {format.format(
                   (grow ? placement.minimumCols : (base?.cols ?? 0)) *
-                    measures.stitchWidthCm,
+                    stitchWidthCm,
                 )}{' '}
                 ×{' '}
                 {format.format(
                   (grow ? placement.minimumRows : (base?.rows ?? 0)) *
-                    measures.rowHeightCm,
+                    rowHeightCm,
                 )}{' '}
                 cm.
               </p>
@@ -871,14 +1000,9 @@ export default function ImageImport({
                   <p>
                     El dibujo no cabe. Puedes agrandar la pieza a{' '}
                     {placement.minimumCols} × {placement.minimumRows} puntos (
-                    {format.format(
-                      placement.minimumCols * measures.stitchWidthCm,
-                    )}{' '}
-                    ×{' '}
-                    {format.format(
-                      placement.minimumRows * measures.rowHeightCm,
-                    )}{' '}
-                    cm) o reducir el dibujo.
+                    {format.format(placement.minimumCols * stitchWidthCm)} ×{' '}
+                    {format.format(placement.minimumRows * rowHeightCm)} cm) o
+                    reducir el dibujo.
                   </p>
                   <div className="import-actions">
                     <button onClick={() => setGrow(true)}>

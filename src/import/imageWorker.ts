@@ -1,7 +1,7 @@
 import {
   cropPixels,
   emptyBorderCrop,
-  detectMesh,
+  inspectImageGrid,
   reduceColors,
   rotatePixels,
   sampleMesh,
@@ -57,7 +57,12 @@ scope.onmessage = (event) => {
       } else if (job.kind === 'detect') {
         progress('Buscando los bordes de los cuadros…');
         const image = cropPixels(job.image, job.crop);
-        result = { image, mesh: detectMesh(image) };
+        const inspection = inspectImageGrid(image);
+        result = { image, mesh: inspection.mesh, inspection };
+      } else if (job.kind === 'inspect') {
+        progress('Buscando el otro eje con tu número de cuadros…');
+        const inspection = inspectImageGrid(job.image, job.hint);
+        result = { mesh: inspection.mesh, inspection };
       } else if (job.kind === 'colors') {
         progress('Ajustando la paleta…');
         result = {

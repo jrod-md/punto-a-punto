@@ -354,6 +354,21 @@ legend {
 .image-import select {
   max-width: 100%;
 }
+.mesh-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 12px;
+}
+.mesh-comparison section {
+  min-width: 0;
+}
+.mesh-comparison h2 {
+  font-size: 1rem;
+}
+.mesh-comparison .image-preview {
+  margin-top: 0;
+}
 .drawing-panel {
   flex: 1;
   position: relative;
