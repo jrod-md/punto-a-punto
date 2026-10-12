@@ -10,6 +10,7 @@
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 280px; }
 button, input, select { font: inherit; }
+input, select, textarea { font-size: 16px; }
 button, input, select, summary, .file-button { min-height: 44px; }
 button { min-width: 44px; padding: 10px 14px; border: 1px solid #b7c0ad; border-radius: 8px; color: inherit; background: #fffdf8; cursor: pointer; line-height: 1.25; }
 button:active { transform: translateY(1px); }
@@ -51,6 +52,8 @@ legend { font-size: .9rem; margin-bottom: 8px; }
 .size-preview strong { font-size: 1.2rem; }
 .size-preview p { margin-bottom: 0; }
 .editor-page { position: fixed; inset: 0; height: 100dvh; width: 100%; overflow: hidden; display: flex; flex-direction: column; margin: 0; padding: 0; }
+.editor-page, .weave-page { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); touch-action: manipulation; }
+.editor-page button, .weave-page button { touch-action: manipulation; }
 .editor-heading { display: flex; flex: 0 0 auto; align-items: center; gap: 4px; padding: 8px; border-bottom: 1px solid #d2d7c9; }
 .editor-heading button { padding: 8px; }
 .editor-title { flex: 1; min-width: 0; }
@@ -110,6 +113,29 @@ details > label { margin-top: 16px; }
   .project-actions { grid-template-columns: repeat(4, auto); }
 }
 @media (prefers-reduced-motion: reduce) { button:active { transform: none; } }
+.pattern-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 24px 0; }
+.pattern-page section { border-top: 1px solid #d2d7c9; margin-top: 28px; padding-top: 20px; }
+.pattern-legend { padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 12px 24px; }
+.pattern-legend li { display: flex; align-items: center; gap: 8px; }
+.pattern-rows { list-style: none; padding: 0; }
+.pattern-rows li { padding: 12px 0; border-bottom: 1px solid #d2d7c9; overflow-wrap: anywhere; }
+.weave-page { position: fixed; inset: 0; height: 100dvh; width: 100%; overflow: hidden; display: flex; flex-direction: column; background: #f7f3ec; }
+.weave-heading { flex: 0 0 auto; display: flex; gap: 8px; padding: 8px; align-items: center; }
+.weave-heading > div { flex: 1; min-width: 0; }
+.weave-heading h1 { font-size: .9rem; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.weave-heading p { font-size: .65rem; margin: 4px 0 0; }
+.weave-information { flex: 0 0 auto; padding: 6px 12px 8px; border-block: 1px solid #d2d7c9; }
+.weave-information h2 { font-size: 1rem; margin: 0; }
+.weave-information p { font-size: .85rem; margin: 4px 0; }
+.weave-information .current-run { font-weight: 650; }
+.weave-dock { flex: 0 0 auto; padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); border-top: 1px solid #d2d7c9; }
+.weave-step { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr); gap: 8px; align-items: end; }
+.weave-step label { margin: 0; font-size: .75rem; gap: 4px; }
+.weave-step select { padding: 8px 4px; }
+.advance-button { min-height: 64px; font-size: 1rem; font-weight: 650; }
+.weave-secondary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.weave-secondary button { font-size: .8rem; padding: 8px; }
+.weave-dock .error { margin: 0 0 8px; padding: 8px; }
 @media (max-height: 500px) {
   .editor-heading { padding: 2px; }
   .editor-dock { padding: 0 8px env(safe-area-inset-bottom); }
@@ -119,4 +145,7 @@ details > label { margin-top: 16px; }
 @media (min-width: 640px) and (max-height: 500px) {
   .editor-dock { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; }
   .tool-bar { justify-content: start; }
+  .weave-heading { padding: 2px; }
+  .weave-dock { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 8px; padding-top: 4px; }
+  .weave-secondary { margin-top: 0; }
 }

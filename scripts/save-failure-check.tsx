@@ -19,6 +19,6 @@ const profiles: Repository<GaugeProfile> = {
   async save() { throw new Error('Esta prueba no modifica perfiles.'); },
   async remove() { throw new Error('Esta prueba no borra perfiles.'); },
 };
-const local: LocalData = { projects, profiles, async importProject() { throw new Error('Esta prueba no importa datos.'); } };
+const local: LocalData = { projects, profiles, settings: {async list(){return [];},async get(){return undefined;},async save(){},async remove(){}}, async importProject() { throw new Error('Esta prueba no importa datos.'); } };
 const root = document.querySelector('#root')!;
 createRoot(root).render(<App openData={async () => local} />);

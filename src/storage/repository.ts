@@ -13,6 +13,7 @@ export interface Repository<T> {
 export interface LocalData {
   projects: Repository<ProjectRecord>;
   profiles: Repository<GaugeProfile>;
+  settings: Repository<{ id: string; value: string }>;
   importProject(file: ProjectFile): Promise<void>;
 }
 
@@ -60,11 +61,14 @@ function repository<T extends { id: string }, Stored>(database: IDBDatabase, nam
 
 export async function openLocalData(databaseName = 'punto-a-punto'): Promise<LocalData> {
   if (!globalThis.indexedDB) throw new Error('Este navegador no permite guardar proyectos. Habilita el almacenamiento local.');
-  const request = indexedDB.open(databaseName, 1);
+  const request = indexedDB.open(databaseName, 2);
   request.onupgradeneeded = () => {
-    request.result.createObjectStore('projects', { keyPath: 'id' });
-    const profiles = request.result.createObjectStore('profiles', { keyPath: 'id' });
-    for (const profile of DEFAULT_PROFILES) profiles.put(profile);
+    if (!request.result.objectStoreNames.contains('projects')) request.result.createObjectStore('projects', { keyPath: 'id' });
+    if (!request.result.objectStoreNames.contains('profiles')) {
+      const profiles = request.result.createObjectStore('profiles', { keyPath: 'id' });
+      for (const profile of DEFAULT_PROFILES) profiles.put(profile);
+    }
+    if (!request.result.objectStoreNames.contains('settings')) request.result.createObjectStore('settings', { keyPath: 'id' });
   };
   request.onblocked = () => request.onerror?.(new Event('error'));
   const database = await requestValue(request);
@@ -72,6 +76,7 @@ export async function openLocalData(databaseName = 'punto-a-punto'): Promise<Loc
   return {
     projects: repository<ProjectRecord, PackedProject>(database, 'projects', packProject, unpackProject),
     profiles: repository<GaugeProfile, GaugeProfile>(database, 'profiles', (value) => value, (value) => value),
+    settings: repository<{id:string;value:string},{id:string;value:string}>(database,'settings',value=>value,value=>value),
     async importProject(file) {
       const packed = packProject(file.project);
       const existing = await requestValue(database.transaction('profiles', 'readonly').objectStore('profiles').get(file.profile.id) as IDBRequest<GaugeProfile | undefined>);

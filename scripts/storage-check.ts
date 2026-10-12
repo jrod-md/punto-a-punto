@@ -1,5 +1,5 @@
 import { openLocalData } from '../src/storage/repository';
-import { exportProjectFile, parseProjectFile } from '../src/core/projectFile';
+import { exportProjectFile, packProject, parseProjectFile } from '../src/core/projectFile';
 import type { PackedProject } from '../src/core/projectFile';
 import { TEST_PROFILE, TEST_PROJECT } from '../src/core/testFixtures';
 import { calibratedProfile, profileDraft } from '../src/core/profiles';
@@ -81,6 +81,30 @@ button.onclick = async () => {
       assert((await local.projects.get(project.id))?.name === 'Nombre actualizado', 'La edición no se guardó.');
       assert((await local.projects.list()).length === 1, 'Se duplicó el registro.');
     });
+    await check('Progreso al final de fila, tramo de color y metadatos al reabrir', async () => {
+      await local.projects.save({ ...project, progress: { row: 2, stitch: project.cols + 1 }, tapStep: 'color-run' });
+      await local.settings.save({ id: `backup:${project.id}`, value: '2026-10-11T12:00:00Z' });
+      const reopened = await openLocalData(name);
+      const saved = await reopened.projects.get(project.id);
+      assert(saved?.progress.stitch === project.cols + 1 && saved.tapStep === 'color-run', 'Se perdió el progreso o el paso.');
+      assert((await reopened.settings.get(`backup:${project.id}`))?.value === '2026-10-11T12:00:00Z', 'Se perdió la fecha del respaldo.');
+    });
+    await check('Migrar IndexedDB de versión 1 a 2 sin alterar proyectos ni muestras', async () => {
+      const legacyName = `${name}-legacy`;
+      const request = indexedDB.open(legacyName, 1);
+      request.onupgradeneeded = () => {
+        request.result.createObjectStore('projects', { keyPath: 'id' }).put(packProject(project));
+        request.result.createObjectStore('profiles', { keyPath: 'id' }).put(TEST_PROFILE);
+      };
+      const legacy = await new Promise<IDBDatabase>((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(new Error('No se pudo crear la base antigua.')); });
+      legacy.close();
+      const upgraded = await openLocalData(legacyName);
+      assert(comparable(await upgraded.projects.get(project.id)) === comparable(project), 'Cambió el proyecto durante la migración.');
+      assert(comparable(await upgraded.profiles.list()) === comparable([TEST_PROFILE]), 'Cambió o se duplicó la muestra antigua.');
+      await upgraded.settings.save({ id: 'ios-install-tip', value: 'shown' });
+      assert((await upgraded.settings.get('ios-install-tip'))?.value === 'shown', 'La nueva tabla no funciona.');
+      await new Promise<void>((resolve, reject) => { const upgrade = indexedDB.open(legacyName, 3); upgrade.onsuccess = () => { upgrade.result.close(); const deletion = indexedDB.deleteDatabase(legacyName); deletion.onsuccess = () => resolve(); deletion.onerror = () => reject(new Error('No se pudo limpiar la base antigua.')); }; upgrade.onerror = () => reject(new Error('No se pudo cerrar la base antigua.')); });
+    });
     await check('Exportar, borrar e importar: proyecto y perfil idénticos', async () => {
       const file = parseProjectFile(exportProjectFile(project, TEST_PROFILE));
       await local.projects.remove(project.id); await local.profiles.remove(TEST_PROFILE.id);
@@ -108,7 +132,7 @@ button.onclick = async () => {
       assert(rejected && await local.profiles.get('perfil-que-no-debe-crearse') === undefined, 'Se creó un registro parcial.');
     });
     await check('Guardado fallido comunica un error', async () => {
-      const dbRequest = indexedDB.open(name, 2);
+      const dbRequest = indexedDB.open(name, 3);
       const database = await new Promise<IDBDatabase>((resolve, reject) => { dbRequest.onsuccess = () => resolve(dbRequest.result); dbRequest.onerror = () => reject(new Error('No se pudo cerrar la conexión de prueba.')); });
       database.close();
       let rejected = false;

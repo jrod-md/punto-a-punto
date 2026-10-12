@@ -22,10 +22,11 @@ interface Props {
   onBack(): void;
   onExport(project: Project): void;
   onCalibrate(project: Project): void;
+  onNavigate(project: Project, screen: 'pattern' | 'weave'): void;
 }
 const tools: { id: Tool; name: string }[] = [{ id: 'paint', name: 'Pintar' }, { id: 'erase', name: 'Borrar' }, { id: 'fill', name: 'Rellenar' }, { id: 'select', name: 'Seleccionar' }];
 
-export default function Editor({ initialProject, profiles, saveStatus, onChange, onBack, onExport, onCalibrate }: Props) {
+export default function Editor({ initialProject, profiles, saveStatus, onChange, onBack, onExport, onCalibrate, onNavigate }: Props) {
   const [history, setHistory] = useState(() => createHistory(initialProject));
   const [tool, setTool] = useState<Tool>('paint');
   const [selectedId, setSelectedId] = useState(initialProject.palette[1]?.id ?? initialProject.backgroundColorId);
@@ -71,6 +72,7 @@ export default function Editor({ initialProject, profiles, saveStatus, onChange,
     </footer>
     {panel && <EditorPanel title={panel === 'settings' ? 'Ajustes del proyecto' : 'Hilo que necesitas'} onClose={() => setPanel(null)}>
       {saveFailed && <p role="alert" className="error">{saveStatus}</p>}
+      {panel === 'settings' && <div className="page-actions"><button onClick={() => onNavigate(project, 'pattern')}>Ver patrón</button><button className="primary" onClick={() => onNavigate(project, 'weave')}>Modo tejer</button></div>}
       {panel === 'yarn' ? <YarnPanel project={project} profile={profile} onChange={apply} onCalibrate={() => onCalibrate(project)} /> : <>
         <label>Nombre del proyecto<input key={project.name} defaultValue={project.name} maxLength={120} onBlur={(event) => { const name = event.target.value.trim(); if (name && name !== project.name) apply({ ...project, name }); else event.target.value = project.name; }} /></label>
         <label>Muestra del proyecto<select value={project.profileId} onChange={(event) => { const next = profiles.find((entry) => entry.id === event.target.value); if (next) { apply(changeProjectProfile(project, next)); setReport('Muestra cambiada: el dibujo conserva sus puntos y filas. El tamaño en centímetros y el hilo se han recalculado.'); } }}>{profiles.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}{entry.approximate ? ' · Aproximado' : ''}</option>)}</select></label><p className="subtle">Cambiar la muestra recalcula el tamaño real y el hilo; conserva todo el dibujo.</p>

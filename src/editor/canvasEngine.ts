@@ -2,7 +2,8 @@ import { linePoints, selectionBounds } from '../core/editor';
 import type { CellPoint } from '../core/editor';
 import { gauge } from '../core/gauge';
 import type { Bounds } from '../core/grid';
-import type { GaugeProfile, Project } from '../core/types';
+import type { GaugeProfile, Progress, Project } from '../core/types';
+import { readingColumn } from '../core/weaving';
 import { completeView, openingView, resizedView, RULER_SIZE, spacedLabels } from './view';
 import type { RulerLabel, View, Viewport } from './view';
 
@@ -15,6 +16,7 @@ export interface CanvasOptions {
   colorIndex: number;
   centers: boolean;
   selection: Bounds | null;
+  weaving?: Progress;
   onStroke(indices: ReadonlySet<number>, color: number): void;
   onFill(point: CellPoint): void;
   onSelect(bounds: Bounds): void;
@@ -67,6 +69,7 @@ export class CanvasEngine {
       if (this.options && this.width && this.height) {
         this.setView(this.initialized && previous.width && previous.height ? resizedView(this.view(), previous, this.viewport()) : openingView(this.viewport()));
         this.initialized = true;
+        if (this.options.weaving) this.focusWeaving(!previous.width);
       }
       this.schedule();
     });
@@ -74,7 +77,8 @@ export class CanvasEngine {
   }
 
   update(options: CanvasOptions) {
-    const changed = this.options?.project !== options.project;
+    const changed = this.options?.project.cells !== options.project.cells || this.options?.project.palette !== options.project.palette || this.options?.project.cols !== options.project.cols || this.options?.project.rows !== options.project.rows;
+    const previousProgress = this.options?.weaving;
     const previous = this.viewport();
     this.options = options;
     const measurements = gauge(options.profile);
@@ -84,6 +88,7 @@ export class CanvasEngine {
       else if (previous.ratio !== this.ratio || previous.cols !== options.project.cols || previous.rows !== options.project.rows) this.setView(resizedView(this.view(), previous, this.viewport()));
     }
     if (changed) this.rebuildRaster();
+    if (options.weaving && this.width && this.height && (previousProgress?.row !== options.weaving.row || previousProgress.stitch !== options.weaving.stitch)) this.focusWeaving(!previousProgress);
     this.schedule();
   }
 
@@ -93,6 +98,17 @@ export class CanvasEngine {
 
   private view(): View { return { cellWidth: this.cellWidth, ...this.origin, complete: this.complete }; }
   private setView(view: View) { this.cellWidth = view.cellWidth; this.origin = { x: view.x, y: view.y }; this.complete = view.complete; }
+
+  private focusWeaving(initial: boolean) {
+    if (!this.options?.weaving) return;
+    const { project, weaving } = this.options;
+    if (initial) { this.cellWidth = Math.max(18, 18 / this.ratio); this.complete = false; }
+    const col = readingColumn(project, weaving.row, Math.min(project.cols, weaving.stitch));
+    const x = this.origin.x + (col + 0.5) * this.cellWidth;
+    const y = this.origin.y + (project.rows - weaving.row + 0.5) * this.cellWidth * this.ratio;
+    if (initial || x < this.ruler + this.cellWidth || x > this.width - this.ruler - this.cellWidth) this.origin.x += this.width / 2 - x;
+    if (initial || y < this.ruler + this.cellWidth * this.ratio || y > this.height - this.ruler - this.cellWidth * this.ratio) this.origin.y += this.height / 2 - y;
+  }
 
   private rebuildRaster() {
     const project = this.options?.project;
@@ -145,6 +161,18 @@ export class CanvasEngine {
       if (ch < 7 && logical % 5 !== 0 && row !== project.rows) continue;
       ctx.beginPath(); ctx.moveTo(x, y + row * ch); ctx.lineTo(x + project.cols * cw, y + row * ch); ctx.stroke();
     }
+    if (options.weaving) {
+      const progress = options.weaving;
+      const rowY = y + (project.rows - progress.row) * ch;
+      ctx.fillStyle = '#faf8f2bf';
+      ctx.fillRect(x, y, project.cols * cw, rowY - y);
+      ctx.fillRect(x, rowY + ch, project.cols * cw, (progress.row - 1) * ch);
+      const done = Math.min(project.cols, progress.stitch - 1);
+      const rtl = project.construction === 'round' || progress.row % 2 === 1;
+      ctx.fillStyle = '#3f573b66'; ctx.fillRect(x + (rtl ? project.cols - done : 0) * cw, rowY, done * cw, ch);
+      ctx.strokeStyle = '#ac4b31'; ctx.lineWidth = 2.5; ctx.strokeRect(x, rowY, project.cols * cw, ch);
+      if (progress.stitch <= project.cols) { const col = readingColumn(project, progress.row, progress.stitch); ctx.strokeStyle = '#30382f'; ctx.lineWidth = 3; ctx.strokeRect(x + col * cw, rowY, cw, ch); }
+    }
     if (options.centers) {
       ctx.strokeStyle = '#ac4b31'; ctx.lineWidth = 1.8; ctx.setLineDash([6, 4]);
       ctx.beginPath(); ctx.moveTo(x + project.cols * cw / 2, y); ctx.lineTo(x + project.cols * cw / 2, y + project.rows * ch); ctx.moveTo(x, y + project.rows * ch / 2); ctx.lineTo(x + project.cols * cw, y + project.rows * ch / 2); ctx.stroke(); ctx.setLineDash([]);
@@ -173,8 +201,8 @@ export class CanvasEngine {
     for (let row = firstRow; row < lastRow; row += 1) {
       const position = y + (row + 0.5) * ch;
       const label = project.rows - row;
-      if (position < this.ruler || position > this.height - this.ruler || (ch < 20 && label !== 1 && label % (ch < 5 ? 10 : 5) !== 0 && label !== project.rows)) continue;
-      rowLabels.push({ value: label, position, size: 12, edge: label === 1 || label === project.rows });
+      if (position < this.ruler || position > this.height - this.ruler || (ch < 20 && label !== 1 && label !== options.weaving?.row && label % (ch < 5 ? 10 : 5) !== 0 && label !== project.rows)) continue;
+      rowLabels.push({ value: label, position, size: 12, edge: label === 1 || label === project.rows || label === options.weaving?.row });
     }
     for (const label of spacedLabels(rowLabels)) { ctx.fillText(String(label.value), 14, label.position); ctx.fillText(String(label.value), this.width - 14, label.position); }
   }
@@ -221,6 +249,7 @@ export class CanvasEngine {
       this.rebuildRaster(); this.stroke.clear(); this.previewSelection = null; this.mode = 'gesture'; this.pinch = this.pinchState(); this.schedule(); return;
     }
     this.startCell = this.cell(point); this.lastCell = null; this.moving = { col: 0, row: 0 };
+    if (this.options.weaving) { this.complete = false; this.mode = 'pan'; return; }
     if (event.button === 1 || this.space) { this.complete = false; this.mode = 'pan'; return; }
     if (!this.startCell) return;
     if (this.options.tool === 'fill') { this.mode = 'fill'; return; }
