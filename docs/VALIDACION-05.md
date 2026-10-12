@@ -81,7 +81,7 @@ Las pruebas puras de importación y colocación están en `src/core/imageImport.
 - [Stitch Fiddle: importar una imagen](https://www.stitchfiddle.com/en/help/1pej-wc93j/import-picture): orden del asistente, rotación y corrección de tamaño y colores.
 - [crochet-engine](https://github.com/dengyu123456/crochet-engine): compensación por ancho del punto y alto de fila, aplicada únicamente a fotos, y recuentos por color.
 
-Se reimplementaron las ideas en TypeScript; no se copió código de las referencias ni se añadieron dependencias. La detección supone cuadros aproximadamente cuadrados; cuando no puede inferirlos con confianza, la rejilla sigue siendo editable y se ofrece el camino de foto. Las escalas enteras conservan el pixel art; la compensación de muestra se aplica solo a fotos.
+Se reimplementaron las ideas en TypeScript; no se copió código de las referencias ni se añadieron dependencias. Esta validación inicial tenía una limitación con cuadros rectangulares y trataba toda detección fallida como foto. Ambas limitaciones se corrigieron en el [encargo 5b](VALIDACION-05b.md), con periodos independientes y preguntas explícitas cuando hay incertidumbre. Las escalas enteras conservan el pixel art; la compensación de muestra se aplica solo a fotos.
 
 Para acotar memoria se eligió un máximo de 1600 px por lado durante el análisis y 64 MB por archivo de entrada. El proyecto guarda únicamente celdas y paleta. Al importar en un proyecto existente, el fondo de la imagen deja visible el dibujo previo; los puntos de otros colores se colocan encima. Colores de igual hexadecimal reutilizan la paleta; los demás se añaden o se fusionan explícitamente. «Ajustar al ancho» limita también el lado largo por la altura disponible y el margen, para que no se corte.
 
