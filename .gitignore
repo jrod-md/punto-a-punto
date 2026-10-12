@@ -11,3 +11,4 @@ coverage/
 !.vscode/extensions.json
 *.tsbuildinfo
 AGENTS.md
+DESIGN.md
