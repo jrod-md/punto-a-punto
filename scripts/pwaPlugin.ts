@@ -10,7 +10,7 @@ export function pwaPlugin(): Plugin {
     apply: 'build',
     generateBundle(_options, bundle) {
       const assets = [
-        '/index.html',
+        '/',
         ...Object.keys(bundle)
           .filter((name) => name !== 'index.html')
           .map((name) => `/${name}`),
