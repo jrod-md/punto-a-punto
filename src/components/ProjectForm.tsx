@@ -4,6 +4,7 @@ import { gauge } from '../core/gauge';
 import { sizing } from '../core/sizing';
 import { validateEditorSize } from '../core/projectFile';
 import type { GaugeProfile, ProjectRecord } from '../core/types';
+import ImageImport from './ImageImport';
 
 interface Props {
   profiles: GaugeProfile[];
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export default function ProjectForm({ profiles, onCreate }: Props) {
+  const [importing, setImporting] = useState(false);
   const [name, setName] = useState('');
   const [profileId, setProfileId] = useState(
     profiles.find((entry) => entry.hookMm === 4)?.id ?? profiles[0]?.id ?? '',
@@ -49,6 +51,17 @@ export default function ProjectForm({ profiles, onCreate }: Props) {
   }
   const format = new Intl.NumberFormat('es', { maximumFractionDigits: 2 });
 
+  if (importing)
+    return (
+      <ImageImport
+        profiles={profiles}
+        onCancel={() => setImporting(false)}
+        onComplete={(project) =>
+          onCreate({ ...project, updatedAt: new Date().toISOString() })
+        }
+      />
+    );
+
   return (
     <form
       onSubmit={(event) => {
@@ -85,6 +98,13 @@ export default function ProjectForm({ profiles, onCreate }: Props) {
     >
       <p className="eyebrow">EMPIEZA POR LAS MEDIDAS</p>
       <h1>Nuevo proyecto</h1>
+      <button
+        type="button"
+        className="primary"
+        onClick={() => setImporting(true)}
+      >
+        Desde una imagen
+      </button>
       <label>
         Nombre del proyecto
         <input

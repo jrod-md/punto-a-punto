@@ -30,6 +30,10 @@ it('uses the existing pattern and yarn formulas with metadata, warnings and all 
   expect(document.heading).toContain('Tamaño real: 2,5 × 1,11 cm');
   expect(document.written.rows).toHaveLength(2);
   expect(document.estimates).toHaveLength(2);
+  expect(
+    document.estimates.reduce((sum, entry) => sum + entry.workedStitches, 0),
+  ).toBe(TEST_PROJECT.cols * TEST_PROJECT.rows);
+  expect(document.text).toContain('4 puntos ·');
   expect(document.text).toContain('Muestra: Muestra propia');
   expect(document.text).toContain('ovillo');
   expect(document.text).toContain('Esta muestra es aproximada');

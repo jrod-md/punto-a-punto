@@ -23,6 +23,7 @@ import ConfirmDialog from './ConfirmDialog';
 import EditorPanel from './EditorPanel';
 import ToolIcon from './ToolIcon';
 import YarnPanel from './YarnPanel';
+import ImageImport from './ImageImport';
 
 interface Props {
   initialProject: Project;
@@ -60,6 +61,7 @@ export default function Editor({
   const [selection, setSelection] = useState<Bounds | null>(null);
   const [report, setReport] = useState('');
   const [panel, setPanel] = useState<'settings' | 'yarn' | null>(null);
+  const [importing, setImporting] = useState(false);
   const project = history.present;
   const profile = profiles.find((entry) => entry.id === project.profileId)!;
   const colorIndex = Math.max(
@@ -100,6 +102,25 @@ export default function Editor({
     );
   }
 
+  if (importing)
+    return (
+      <main className="page narrow">
+        <ImageImport
+          profiles={profiles}
+          project={project}
+          onCancel={() => setImporting(false)}
+          onComplete={(next) => {
+            apply(next);
+            setImporting(false);
+            setSelection(null);
+            setReport(
+              'Imagen importada y centrada. Puedes deshacerla en un solo paso.',
+            );
+          }}
+        />
+      </main>
+    );
+
   return (
     <main className="editor-page">
       <header className="editor-heading">
@@ -119,6 +140,22 @@ export default function Editor({
           </p>
         </div>
         <button onClick={() => setPanel('yarn')}>Hilo</button>
+        <button
+          aria-label="Ver patrón"
+          onClick={() => onNavigate(project, 'pattern')}
+        >
+          Ver
+          <br />
+          patrón
+        </button>
+        <button
+          aria-label="Modo tejer"
+          onClick={() => onNavigate(project, 'weave')}
+        >
+          Modo
+          <br />
+          tejer
+        </button>
         <button onClick={() => setPanel('settings')}>Ajustes</button>
       </header>
       <section className="drawing-panel" aria-label="Herramientas y cuadrícula">
@@ -247,14 +284,13 @@ export default function Editor({
           )}
           {panel === 'settings' && (
             <div className="page-actions">
-              <button onClick={() => onNavigate(project, 'pattern')}>
-                Ver patrón
-              </button>
               <button
-                className="primary"
-                onClick={() => onNavigate(project, 'weave')}
+                onClick={() => {
+                  setPanel(null);
+                  setImporting(true);
+                }}
               >
-                Modo tejer
+                Importar imagen
               </button>
             </div>
           )}

@@ -52,6 +52,7 @@ export default function YarnPanel({
                 style={{ backgroundColor: color.hex }}
               />
               <span>{color.name}</span>
+              <span>{entry.workedStitches} puntos</span>
               <strong>{format.format(entry.meters)} m</strong>
               {entry.balls !== undefined && (
                 <span>
