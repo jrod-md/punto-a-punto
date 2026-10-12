@@ -58,7 +58,9 @@ No se puede borrar una muestra que use algún proyecto: el aviso enumera cuáles
 
 ## Importar una imagen
 
-Al crear un proyecto, pulsa «Desde una imagen». En un proyecto abierto, usa «Ajustes → Importar imagen». El asistente permite recortar con dos esquinas o medidas, girar 90°, revisar la rejilla detectada, corregir sus columnas y filas y elegir de 2 a 12 colores. También puedes fusionarlos, renombrarlos y elegir el fondo.
+Al crear un proyecto, pulsa «Desde una imagen». En un proyecto abierto, usa «Ajustes → Importar imagen». El asistente permite recortar arrastrando dos esquinas, girar 90°, revisar la rejilla detectada, corregir sus columnas y filas y elegir de 2 a 12 colores. Las medidas de recorte quedan plegadas en «Ajuste fino». Los colores reciben nombres por su tono y puedes fusionarlos, renombrarlos y elegir el fondo.
+
+El fondo se propone por el contorno del dibujo recortado. Si no está claro, se consultan las esquinas; si tampoco deciden, la app pregunta. En el paso de colores ves el dibujo sobre una pieza mayor rellena con el fondo elegido, y cambiarlo actualiza la vista al momento. Las medidas del dibujo y los márgenes usan solo las celdas que no son fondo.
 
 En pixel art se recuperan los cuadros reales, cuadrados o rectangulares, y el color de su zona central, evitando las líneas y los bordes. El paso de cuadros muestra la imagen con su rejilla junto al dibujo que se está leyendo. Si no puede confirmar ambos ejes, pregunta los números; corregir uno vuelve a buscar el otro. Los cuadros de menos de unos 6 px muestran un aviso para usar la imagen original, pero permiten continuar. El camino de foto se usa cuando la imagen es claramente suave o cuando tú lo eliges: indicas el ancho en puntos y la muestra determina las filas para conservar la proporción al tejer. Ese resultado necesitará retoques. La vista previa muestra la proporción física del punto y las medidas en centímetros.
 
@@ -112,6 +114,6 @@ Con Vite abierto, visita las siguientes rutas locales y pulsa «Ejecutar comprob
 - `/scripts/export-check.html`: genera y abre PNG reales de 64 × 72, 200 × 200 y 1000 × 1000, comprobando resolución y el límite de 4096 px.
 - `/scripts/save-failure-check.html`: abre el proyecto de ejemplo y añade un color. El primer guardado falla a propósito y muestra el aviso; la siguiente edición permite recuperarse. No usa la base de la aplicación.
 
-Estas páginas son herramientas de validación para desarrollo y no se incluyen en la compilación de la aplicación. Los informes están en [docs/VALIDACION-04.md](docs/VALIDACION-04.md), [docs/VALIDACION-05.md](docs/VALIDACION-05.md) y [docs/VALIDACION-05b.md](docs/VALIDACION-05b.md).
+Estas páginas son herramientas de validación para desarrollo y no se incluyen en la compilación de la aplicación. Los informes están en [docs/VALIDACION-04.md](docs/VALIDACION-04.md), [docs/VALIDACION-05.md](docs/VALIDACION-05.md), [docs/VALIDACION-05b.md](docs/VALIDACION-05b.md) y [docs/VALIDACION-05c.md](docs/VALIDACION-05c.md).
 
 Vite, React, TypeScript, Vitest y ESLint implementan las herramientas solicitadas. Se añadió [jsPDF 4.2.1](https://github.com/parallax/jsPDF), la dependencia autorizada para generar el PDF localmente con cuadrícula vectorial y varias páginas. El módulo se importa solo al pulsar «Descargar PDF»; sus archivos se preparan en la caché para permitir esa acción sin conexión. Se incluyen las fuentes Noto Sans y Noto Sans Symbols para conservar los acentos y las flechas del patrón, con su licencia OFL en `src/assets/fonts/OFL.txt`. No se descargan fuentes ni datos del tejido desde servicios externos durante el uso.
