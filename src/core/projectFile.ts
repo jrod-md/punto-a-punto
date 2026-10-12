@@ -2,7 +2,7 @@ import { gauge } from './gauge';
 import type { GaugeProfile, ProjectRecord } from './types';
 import { requireInteger, requirePositive, validateProject } from './validation';
 
-export interface ProjectFile { formatVersion: 1; project: ProjectRecord; profile: GaugeProfile }
+export interface ProjectFile { formatVersion: 1 | 2; project: ProjectRecord; profile: GaugeProfile }
 export interface PackedProject extends Omit<ProjectRecord, 'cells'> { cells: Uint8Array }
 
 function object(value: unknown): Record<string, unknown> {
@@ -41,7 +41,7 @@ export function parseProjectFile(source: string): ProjectFile {
   let parsed: unknown;
   try { parsed = JSON.parse(source) as unknown; } catch { throw new Error('El archivo no es un JSON válido.'); }
   const root = object(parsed);
-  if (root.formatVersion !== 1) throw new Error('La versión del archivo no es compatible.');
+  if (root.formatVersion !== 1 && root.formatVersion !== 2) throw new Error('La versión del archivo no es compatible.');
   const data = object(root.project);
   const sample = object(root.profile);
   const profile: GaugeProfile = {
@@ -69,18 +69,18 @@ export function parseProjectFile(source: string): ProjectFile {
     }),
     cells: data.cells.map((value: unknown) => number(value)), backgroundColorId: text(data.backgroundColorId),
     carryAlways: boolean(data.carryAlways), marginPercent: number(data.marginPercent),
-    progress: { row: number(progress.row), stitch: number(progress.stitch) }, tapStep: number(data.tapStep), updatedAt: text(data.updatedAt),
+    progress: { row: number(progress.row), stitch: number(progress.stitch) }, tapStep: root.formatVersion === 2 && data.tapStep === 'color-run' ? 'color-run' : number(data.tapStep), updatedAt: text(data.updatedAt),
   };
   validateProject(project);
-  for (const value of [project.progress.row, project.progress.stitch, project.tapStep]) { requireInteger(value, 'El progreso'); requirePositive(value, 'El progreso'); }
-  if (project.progress.row > rows || project.progress.stitch > cols) throw new Error('El progreso está fuera de la cuadrícula.');
+  for (const value of [project.progress.row, project.progress.stitch, ...(project.tapStep === 'color-run' ? [] : [project.tapStep])]) { requireInteger(value, 'El progreso'); requirePositive(value, 'El progreso'); }
+  if (project.progress.row > rows || project.progress.stitch > cols + (root.formatVersion === 2 ? 1 : 0)) throw new Error('El progreso está fuera de la cuadrícula.');
   if (!Number.isFinite(Date.parse(project.updatedAt))) throw new Error('La fecha de edición no es válida.');
   if (project.profileId !== profile.id) throw new Error('El perfil no coincide con el proyecto.');
-  return { formatVersion: 1, project, profile };
+  return { formatVersion: root.formatVersion, project, profile };
 }
 
 export function exportProjectFile(project: ProjectRecord, profile: GaugeProfile): string {
-  const source = JSON.stringify({ formatVersion: 1, project, profile }, null, 2);
+  const source = JSON.stringify({ formatVersion: 2, project, profile }, null, 2);
   parseProjectFile(source);
   return source;
 }

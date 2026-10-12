@@ -1,4 +1,6 @@
 export type Construction = 'flat' | 'round';
+export type TapStep = number | 'color-run';
+export interface Progress { row: number; stitch: number }
 
 export interface GaugeProfile {
   id: string;
@@ -38,9 +40,9 @@ export interface Project extends Grid {
   backgroundColorId: string;
   carryAlways: boolean;
   marginPercent: number;
-  // Progress uses one-based row and stitch numbers.
-  progress: { row: number; stitch: number };
-  tapStep: number;
+  // One-based next stitch; cols + 1 means that the row is complete.
+  progress: Progress;
+  tapStep: TapStep;
 }
 
 export interface ProjectRecord extends Project {

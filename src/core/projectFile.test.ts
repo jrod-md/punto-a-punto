@@ -5,8 +5,15 @@ import { TEST_PROFILE, TEST_PROJECT } from './testFixtures';
 const record = { ...TEST_PROJECT, updatedAt: '2026-10-11T18:00:00.000Z' };
 
 describe('project files and compact cells', () => {
+  it('reads legacy backups and preserves completed rows and color-run steps in version 2', () => {
+    expect(parseProjectFile(JSON.stringify({ formatVersion: 1, project: record, profile: TEST_PROFILE })).project).toEqual(record);
+    const complete = { ...record, tapStep: 'color-run' as const, progress: { row: 2, stitch: 5 } };
+    expect(parseProjectFile(exportProjectFile(complete, TEST_PROFILE)).project).toEqual(complete);
+    expect(() => parseProjectFile(JSON.stringify({ formatVersion: 1, project: complete, profile: TEST_PROFILE }))).toThrow();
+    expect(() => parseProjectFile(JSON.stringify({ formatVersion: 2, project: { ...complete, tapStep: 'otro' }, profile: TEST_PROFILE }))).toThrow();
+  });
   it('round-trips a complete versioned project and its profile identically', () => {
-    expect(parseProjectFile(exportProjectFile(record, TEST_PROFILE))).toEqual({ formatVersion: 1, project: record, profile: TEST_PROFILE });
+    expect(parseProjectFile(exportProjectFile(record, TEST_PROFILE))).toEqual({ formatVersion: 2, project: record, profile: TEST_PROFILE });
     const profile = { ...TEST_PROFILE, metersPerBall: 150 };
     expect(parseProjectFile(exportProjectFile(record, profile)).profile).toEqual(profile);
   });

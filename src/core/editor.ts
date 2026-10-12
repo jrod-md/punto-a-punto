@@ -2,6 +2,7 @@ import type { Bounds } from './grid';
 import { createGrid, designBounds, moveDesign } from './grid';
 import type { Project } from './types';
 import { requireInteger, validateDimensions, validateProject } from './validation';
+import { adjustProgress } from './weaving';
 
 export interface CellPoint { col: number; row: number }
 export interface History { past: readonly Project[]; present: Project; future: readonly Project[] }
@@ -141,11 +142,11 @@ export function resizeProject(project: Project, cols: number, rows: number, allo
     const dx = Math.min(0, cols - bounds.width - bounds.left);
     const dy = Math.min(0, rows - bounds.height - bounds.bottom);
     const moved = moveDesign(project, background, dx, dy, createGrid(cols, rows, background));
-    return { project: { ...project, ...moved.grid, progress: { row: Math.min(project.progress.row, rows), stitch: Math.min(project.progress.stitch, cols) } }, needsCrop: false };
+    return { project: { ...project, ...moved.grid, progress: adjustProgress({ ...project, cols, rows }) }, needsCrop: false };
   }
   const cells = Array<number>(cols * rows).fill(background);
   for (let row = 0; row < Math.min(rows, project.rows); row += 1) {
     for (let col = 0; col < Math.min(cols, project.cols); col += 1) cells[row * cols + col] = project.cells[row * project.cols + col]!;
   }
-  return { project: { ...project, cols, rows, cells, progress: { row: Math.min(project.progress.row, rows), stitch: Math.min(project.progress.stitch, cols) } }, needsCrop };
+  return { project: { ...project, cols, rows, cells, progress: adjustProgress({ ...project, cols, rows }) }, needsCrop };
 }

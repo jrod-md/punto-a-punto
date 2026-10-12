@@ -86,7 +86,7 @@ describe('editor operations', () => {
     expect(resizeProject(TEST_PROJECT, 2, 1, true).project.cells).toEqual([0, 0]);
     expect(resizeProject(TEST_PROJECT, 4, 2).project).toBe(TEST_PROJECT);
     const empty = { ...TEST_PROJECT, cells: Array<number>(8).fill(0), progress: { row: 2, stitch: 4 } };
-    expect(resizeProject(empty, 1, 1).project.progress).toEqual({ row: 1, stitch: 1 });
+    expect(resizeProject(empty, 1, 1).project.progress).toEqual({ row: 1, stitch: 2 });
     expect(() => resizeProject(TEST_PROJECT, 0, 1)).toThrow();
   });
 
