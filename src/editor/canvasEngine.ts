@@ -224,7 +224,7 @@ export class CanvasEngine {
     const { x, y } = this.origin;
     ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
     ctx.clearRect(0, 0, this.width, this.height);
-    ctx.fillStyle = '#e8e5dd';
+    ctx.fillStyle = '#f1e8d9';
     ctx.fillRect(0, 0, this.width, this.height);
     ctx.save();
     ctx.beginPath();
@@ -275,12 +275,12 @@ export class CanvasEngine {
     if (options.weaving) {
       const progress = options.weaving;
       const rowY = y + (project.rows - progress.row) * ch;
-      ctx.fillStyle = '#faf8f2bf';
+      ctx.fillStyle = '#fffcf6bf';
       ctx.fillRect(x, y, project.cols * cw, rowY - y);
       ctx.fillRect(x, rowY + ch, project.cols * cw, (progress.row - 1) * ch);
       const done = Math.min(project.cols, progress.stitch - 1);
       const rtl = project.construction === 'round' || progress.row % 2 === 1;
-      ctx.fillStyle = '#3f573b66';
+      ctx.fillStyle = '#4f7a5a66';
       ctx.fillRect(
         x + (rtl ? project.cols - done : 0) * cw,
         rowY,
@@ -292,7 +292,7 @@ export class CanvasEngine {
       ctx.strokeRect(x, rowY, project.cols * cw, ch);
       if (progress.stitch <= project.cols) {
         const col = readingColumn(project, progress.row, progress.stitch);
-        ctx.strokeStyle = '#30382f';
+        ctx.strokeStyle = '#3a2f2a';
         ctx.lineWidth = 3;
         ctx.strokeRect(x + col * cw, rowY, cw, ch);
       }
@@ -323,12 +323,12 @@ export class CanvasEngine {
       ctx.strokeRect(sx, sy, selection.width * cw, selection.height * ch);
     }
     ctx.restore();
-    ctx.fillStyle = '#faf8f2';
+    ctx.fillStyle = '#fffcf6';
     ctx.fillRect(0, 0, this.width, this.ruler);
     ctx.fillRect(0, this.height - this.ruler, this.width, this.ruler);
     ctx.fillRect(0, 0, this.ruler, this.height);
     ctx.fillRect(this.width - this.ruler, 0, this.ruler, this.height);
-    ctx.fillStyle = '#30382f';
+    ctx.fillStyle = '#3a2f2a';
     ctx.font = '11px system-ui';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';

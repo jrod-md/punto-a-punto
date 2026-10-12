@@ -23,6 +23,7 @@ import type { GaugeProfile, Project } from '../core/types';
 import { ImageJobs } from '../import/imageJobs';
 import type { ImageJob } from '../import/imageJobs';
 import { createId } from '../storage/ids';
+import { Sheep } from './Art';
 import ImagePreview from './ImagePreview';
 
 interface Props {
@@ -497,8 +498,18 @@ export default function ImageImport({
           </button>
           <h1>{project ? 'Añadir una imagen' : 'Empezar con una imagen'}</h1>
         </header>
-        {status}
-        {!busy && (
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        {busy ? (
+          <div className="busy-sheep" role="status">
+            <Sheep />
+            <p>Leyendo tu dibujo…</p>
+            <progress aria-label="Procesando la imagen" />
+          </div>
+        ) : (
           <>
             <p>
               Abre un pixel art o la captura de un patrón. La app lee los
