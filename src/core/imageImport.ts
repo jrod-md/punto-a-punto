@@ -1,5 +1,6 @@
 import type { Grid, PaletteColor } from './types';
 import { validateEditorSize } from './projectFile';
+import { nameImageColors, proposeImageBackground } from './imageBackground';
 
 export interface PixelImage {
   width: number;
@@ -29,7 +30,7 @@ export interface GridInspection {
 }
 export interface ImportedDrawing extends Grid {
   palette: PaletteColor[];
-  background: number;
+  background: number | null;
   transparent?: readonly boolean[];
 }
 export type Rgba = readonly [number, number, number, number];
@@ -583,26 +584,25 @@ export function reduceColors(
     }),
   );
   const transparent = clusters.findIndex((entry) => entry.color[3] < 128);
-  const background =
-    transparent >= 0
-      ? transparent
-      : clusters.reduce(
-          (best, entry, i) => (entry.count > clusters[best]!.count ? i : best),
-          0,
-        );
-  const palette = clusters.map((entry, i) => ({
-    id: `image-${i}`,
-    name: entry.color[3] < 128 ? 'Fondo transparente' : `Color ${i + 1}`,
-    hex:
-      '#' +
-      entry.color
-        .slice(0, 3)
-        .map((v) => v.toString(16).padStart(2, '0'))
-        .join(''),
-  }));
+  const background = proposeImageBackground(
+    { cols, rows, cells },
+    transparent >= 0 ? transparent : undefined,
+  );
+  const palette = nameImageColors(
+    clusters.map((entry, i) => ({
+      id: `image-${i}`,
+      name: '',
+      hex:
+        '#' +
+        entry.color
+          .slice(0, 3)
+          .map((v) => v.toString(16).padStart(2, '0'))
+          .join(''),
+    })),
+  );
   const transparentMask = samples.map((p) => p[3] < 128);
   transparentMask.forEach((value, i) => {
-    if (value) cells[i] = background;
+    if (value && background !== null) cells[i] = background;
   });
   return {
     cols,
@@ -629,7 +629,13 @@ export function mergeDrawingColors(
     ...drawing,
     palette: drawing.palette.filter((_, i) => i !== source),
     cells: drawing.cells.map(mapped),
-    background: mapped(drawing.background),
+    background:
+      drawing.background === null
+        ? proposeImageBackground({
+            ...drawing,
+            cells: drawing.cells.map(mapped),
+          })
+        : mapped(drawing.background),
   };
 }
 

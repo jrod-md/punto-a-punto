@@ -24,6 +24,9 @@ export function planImagePlacement(
 ): PlacementPlan {
   validateProject(project);
   validateEditorSize(drawing.cols, drawing.rows);
+  if (drawing.background === null)
+    throw new RangeError('Elige un color de fondo antes de colocar el dibujo.');
+  const imageBackground = drawing.background;
   if (
     !drawing.palette[drawing.background] ||
     drawing.cells.some((v) => !drawing.palette[v])
@@ -35,9 +38,7 @@ export function planImagePlacement(
   const visibleDrawing = {
     ...drawing,
     cells: drawing.cells.map((color) =>
-      mappings[color] === project.backgroundColorId
-        ? drawing.background
-        : color,
+      mappings[color] === project.backgroundColorId ? imageBackground : color,
     ),
   };
   const bounds = designBounds(visibleDrawing, drawing.background);
