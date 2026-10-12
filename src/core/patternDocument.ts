@@ -50,7 +50,7 @@ export function patternDocument(project: Project, profile: GaugeProfile) {
   ];
   const yarnLines = estimates.map(
     (entry) =>
-      `${entry.color.name}: ${meters.format(entry.meters)} m${entry.balls === undefined ? '' : ` · ${entry.balls} ${entry.balls === 1 ? 'ovillo' : 'ovillos'}`}`,
+      `${entry.color.name}: ${entry.workedStitches} puntos · ${meters.format(entry.meters)} m${entry.balls === undefined ? '' : ` · ${entry.balls} ${entry.balls === 1 ? 'ovillo' : 'ovillos'}`}`,
   );
   return {
     heading,

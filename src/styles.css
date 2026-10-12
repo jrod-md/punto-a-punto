@@ -264,7 +264,9 @@ legend {
   border-bottom: 1px solid #d2d7c9;
 }
 .editor-heading button {
-  padding: 8px;
+  padding: 4px 6px;
+  font-size: 0.8rem;
+  height: 44px;
 }
 .editor-title {
   flex: 1;
@@ -281,6 +283,98 @@ legend {
   font-size: 0.7rem;
   margin: 0;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.image-import {
+  min-width: 0;
+}
+.import-heading,
+.import-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-block: 16px;
+}
+.import-heading .eyebrow {
+  margin: 0;
+}
+.image-preview {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #b7c0ad;
+  background: #fffdf8;
+  margin-block: 16px;
+}
+.crop-preview {
+  position: relative;
+  touch-action: none;
+}
+.crop-fine {
+  margin-block: 16px;
+}
+.crop-fine summary {
+  padding: 10px 0;
+  cursor: pointer;
+}
+.crop-handle {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 2px solid #ad593a;
+  background: #fffdf8;
+  touch-action: none;
+}
+.crop-handle:active {
+  transform: translate(-50%, -50%);
+}
+.import-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.import-fields input,
+.import-fields select,
+.import-colors input {
+  min-width: 0;
+  width: 100%;
+}
+.import-colors label {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.image-import progress {
+  width: 100%;
+  accent-color: #3f573b;
+}
+.image-import input[type='range'] {
+  width: 100%;
+  padding: 0;
+  accent-color: #3f573b;
+}
+.image-import select {
+  max-width: 100%;
+}
+.mesh-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 12px;
+}
+.mesh-comparison section {
+  min-width: 0;
+}
+.mesh-comparison h2 {
+  font-size: 1rem;
+}
+.mesh-comparison .image-preview {
+  margin-top: 0;
 }
 .drawing-panel {
   flex: 1;

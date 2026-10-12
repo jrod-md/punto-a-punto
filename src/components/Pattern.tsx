@@ -130,6 +130,7 @@ export default function Pattern({
                 style={{ backgroundColor: entry.color.hex }}
               />
               <span>{entry.color.name}</span>
+              <span>{entry.workedStitches} puntos</span>
               <strong>{meters.format(entry.meters)} m</strong>
               {entry.balls !== undefined && (
                 <span>

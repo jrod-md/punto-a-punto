@@ -88,7 +88,7 @@ export async function createPatternPdf(
   });
   document.estimates.forEach((entry) =>
     write(
-      `${entry.color.name}: ${meterFormat.format(entry.meters)} m${entry.balls === undefined ? '' : ` · ${entry.balls} ${entry.balls === 1 ? 'ovillo' : 'ovillos'}`}`,
+      `${entry.color.name}: ${entry.workedStitches} puntos · ${meterFormat.format(entry.meters)} m${entry.balls === undefined ? '' : ` · ${entry.balls} ${entry.balls === 1 ? 'ovillo' : 'ovillos'}`}`,
     ),
   );
   write(`Total estimado: ${meterFormat.format(document.totalMeters)} m`);
