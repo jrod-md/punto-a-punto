@@ -313,6 +313,13 @@ legend {
   position: relative;
   touch-action: none;
 }
+.crop-fine {
+  margin-block: 16px;
+}
+.crop-fine summary {
+  padding: 10px 0;
+  cursor: pointer;
+}
 .crop-handle {
   position: absolute;
   transform: translate(-50%, -50%);

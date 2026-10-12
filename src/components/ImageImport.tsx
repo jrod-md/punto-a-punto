@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { gauge } from '../core/gauge';
 import { designBounds } from '../core/grid';
+import { previewDrawingOnBackground } from '../core/imageBackground';
 import {
   manualMesh,
   mergeDrawingColors,
@@ -236,6 +237,17 @@ export default function ImageImport({
       setMergeTo(Math.min(1, result.drawing.palette.length - 1));
     }
   }
+  const colorsPreview = useMemo(
+    () =>
+      drawing && drawing.background !== null
+        ? previewDrawingOnBackground(drawing)
+        : drawing,
+    [drawing],
+  );
+  const drawingBounds =
+    drawing && drawing.background !== null
+      ? designBounds(drawing, drawing.background)
+      : null;
 
   let placement: ReturnType<typeof planImagePlacement> | undefined;
   let scaled: ImportedDrawing | undefined;
@@ -244,6 +256,8 @@ export default function ImageImport({
   let base: Project | undefined;
   if (drawing && step === 5) {
     try {
+      if (drawing.background === null)
+        throw new Error('Elige un color de fondo antes de colocar el dibujo.');
       const size = project
         ? { cols: project.cols, rows: project.rows }
         : unit === 'cm'
@@ -293,9 +307,10 @@ export default function ImageImport({
           : 'Revisa las medidas de la pieza.';
     }
   }
-  const bounds = scaled
-    ? designBounds(placement?.centering.grid ?? scaled, scaled.background)
-    : null;
+  const bounds =
+    scaled && scaled.background !== null
+      ? designBounds(placement?.centering.grid ?? scaled, scaled.background)
+      : null;
   const report = placement?.centering.margins;
   const scaledPreview =
     scaled && project
@@ -423,7 +438,7 @@ export default function ImageImport({
         <>
           <p>
             Deja solo el dibujo, sin números ni texto. Arrastra las dos esquinas
-            del marco o afina el recorte con las medidas de abajo.
+            del marco. Si necesitas más precisión, abre «Ajuste fino».
           </p>
           <div className="crop-preview" ref={cropRef}>
             <ImagePreview image={image} crop={crop} />
@@ -469,45 +484,51 @@ export default function ImageImport({
           >
             Girar 90°
           </button>
-          <div className="import-fields">
-            {(['x', 'y', 'width', 'height'] as const).map((field) => (
-              <label key={field}>
-                {
+          <details className="crop-fine">
+            <summary>Ajuste fino</summary>
+            <div className="import-fields">
+              {(['x', 'y', 'width', 'height'] as const).map((field) => (
+                <label key={field}>
                   {
-                    x: 'Desde la izquierda (px)',
-                    y: 'Desde arriba (px)',
-                    width: 'Ancho del recorte (px)',
-                    height: 'Alto del recorte (px)',
-                  }[field]
-                }
-                <input
-                  type="number"
-                  min={field === 'x' || field === 'y' ? 0 : 1}
-                  max={
-                    field === 'x' || field === 'width'
-                      ? image.width
-                      : image.height
+                    {
+                      x: 'Desde la izquierda (px)',
+                      y: 'Desde arriba (px)',
+                      width: 'Ancho del recorte (px)',
+                      height: 'Alto del recorte (px)',
+                    }[field]
                   }
-                  value={crop[field]}
-                  onChange={(e) => {
-                    const value = Math.round(Number(e.target.value));
-                    const next = {
-                      ...crop,
-                      [field]: Math.max(
-                        field === 'x' || field === 'y' ? 0 : 1,
-                        value,
-                      ),
-                    };
-                    next.x = Math.min(next.x, image.width - 1);
-                    next.y = Math.min(next.y, image.height - 1);
-                    next.width = Math.min(next.width, image.width - next.x);
-                    next.height = Math.min(next.height, image.height - next.y);
-                    setCrop(next);
-                  }}
-                />
-              </label>
-            ))}
-          </div>
+                  <input
+                    type="number"
+                    min={field === 'x' || field === 'y' ? 0 : 1}
+                    max={
+                      field === 'x' || field === 'width'
+                        ? image.width
+                        : image.height
+                    }
+                    value={crop[field]}
+                    onChange={(e) => {
+                      const value = Math.round(Number(e.target.value));
+                      const next = {
+                        ...crop,
+                        [field]: Math.max(
+                          field === 'x' || field === 'y' ? 0 : 1,
+                          value,
+                        ),
+                      };
+                      next.x = Math.min(next.x, image.width - 1);
+                      next.y = Math.min(next.y, image.height - 1);
+                      next.width = Math.min(next.width, image.width - next.x);
+                      next.height = Math.min(
+                        next.height,
+                        image.height - next.y,
+                      );
+                      setCrop(next);
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+          </details>
           <button
             className="primary"
             disabled={Boolean(busy)}
@@ -682,7 +703,15 @@ export default function ImageImport({
       )}
       {step === 3 && drawing && (
         <>
-          <ImagePreview drawing={drawing} />
+          <p>
+            {drawing.background === null
+              ? '¿Qué color debe tener el fondo? El contorno y las esquinas no lo deciden con claridad.'
+              : 'Comprueba el dibujo sobre una pieza más grande, rellena con el fondo elegido.'}
+          </p>
+          <ImagePreview
+            drawing={colorsPreview}
+            stitchRatio={rowHeightCm / stitchWidthCm}
+          />
           <label>
             Máximo de colores: {maximum}
             <input
@@ -726,7 +755,7 @@ export default function ImageImport({
           <label>
             Color de fondo
             <select
-              value={drawing.background}
+              value={drawing.background ?? ''}
               onChange={(e) => {
                 const background = Number(e.target.value);
                 setDrawing({
@@ -738,6 +767,9 @@ export default function ImageImport({
                 });
               }}
             >
+              <option value="" disabled>
+                Elige el color de fondo
+              </option>
               {drawing.palette.map((entry, i) => (
                 <option key={entry.id} value={i}>
                   {entry.name || `Color ${i + 1}`}
@@ -795,7 +827,7 @@ export default function ImageImport({
             </button>
             <button
               className="primary"
-              disabled={Boolean(busy)}
+              disabled={Boolean(busy) || drawing.background === null}
               onClick={() => {
                 setMappings({});
                 setStep(4);
@@ -813,9 +845,10 @@ export default function ImageImport({
             stitchRatio={rowHeightCm / stitchWidthCm}
           />
           <p>
-            {drawing.cols} puntos × {drawing.rows} filas ·{' '}
-            {format.format(drawing.cols * stitchWidthCm)} ×{' '}
-            {format.format(drawing.rows * rowHeightCm)} cm.
+            Dibujo: {drawingBounds?.width ?? 0} puntos ×{' '}
+            {drawingBounds?.height ?? 0} filas ·{' '}
+            {format.format((drawingBounds?.width ?? 0) * stitchWidthCm)} ×{' '}
+            {format.format((drawingBounds?.height ?? 0) * rowHeightCm)} cm.
           </p>
           {profileSelect}
           {profile.approximate && (
