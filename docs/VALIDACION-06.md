@@ -67,6 +67,7 @@ El flujo de imagen también queda registrado: [elegir archivo](assets/editor-06-
 ## Decisiones y límites
 
 - Las dos líneas se separan con una fila de fondo antes de escalar. Se divide por el espacio más próximo a la mitad o por la mitad de un nombre sin espacios, centrando cada línea.
+- El campo de texto admite hasta 120 caracteres, como el nombre del proyecto; los tamaños que no caben siguen rechazándose sin recortar letras.
 - Se pinta solo la parte visible de las letras sobre el dibujo existente, sin crear capas. El color de fondo no permite aceptar un texto invisible; se pide elegir otro color.
 - Los ejemplos usan una muestra existente de aguja de 4 mm. Si se borraron todas las de 4 mm, se guarda una copia del perfil aproximado inicial con identificador nuevo, sin reemplazar muestras propias.
 - La verificación de importación encontró un bloqueo previo en desarrollo: el ensayo de montaje de React StrictMode recreaba el worker y consumía el archivo inicial. Se difiere esa lectura con un temporizador cancelable durante la limpieza; así funciona tanto en desarrollo como en producción, sin cambiar pasos ni opciones.
