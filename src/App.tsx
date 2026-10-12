@@ -6,6 +6,8 @@ import { openLocalData } from './storage/repository';
 import type { LocalData } from './storage/repository';
 import Editor from './components/Editor';
 import ProjectForm from './components/ProjectForm';
+import ImageImport from './components/ImageImport';
+import ProjectThumb from './components/ProjectThumb';
 import ConfirmDialog from './components/ConfirmDialog';
 import Profiles from './components/Profiles';
 import { profileProjectNames } from './core/profiles';
@@ -34,6 +36,7 @@ export default function App({
   const [openedAt] = useState(() => Date.now());
   const [installTip, setInstallTip] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [managingProfiles, setManagingProfiles] = useState(false);
   const [calibratingId, setCalibratingId] = useState<string | undefined>();
   const [error, setError] = useState('');
@@ -163,6 +166,7 @@ export default function App({
         [`baseline:${project.id}`]: project.updatedAt,
       }));
       setCreating(false);
+      setImageFile(null);
       setScreen('editor');
       setActive(project);
       setError('');
@@ -416,6 +420,30 @@ export default function App({
         }
       />
     );
+  if (imageFile)
+    return (
+      <main className="page narrow">
+        <ImageImport
+          profiles={profiles}
+          initialFile={imageFile}
+          onCancel={() => {
+            setImageFile(null);
+            setError('');
+          }}
+          onComplete={(project) => {
+            void createProject({
+              ...project,
+              updatedAt: new Date().toISOString(),
+            });
+          }}
+        />
+        {error && (
+          <p role="alert" className="error">
+            {error}
+          </p>
+        )}
+      </main>
+    );
   if (creating)
     return (
       <main className="page narrow">
@@ -455,62 +483,44 @@ export default function App({
   const overdue = overdueBackups(projects, backupDates, baselines, openedAt);
   return (
     <main className="page">
-      <header className="page-heading">
-        <div>
-          <p className="eyebrow">PUNTO A PUNTO · TAPESTRY CROCHET</p>
-          <h1>Tus proyectos</h1>
-          <p>Tu hilo, tus medidas, tu diseño.</p>
-        </div>
-        <div className="page-actions">
-          <button className="primary" onClick={() => setCreating(true)}>
-            Crear proyecto
-          </button>
-          <button
-            onClick={() => {
-              setCalibratingId(undefined);
-              setManagingProfiles(true);
-            }}
-          >
-            Mis muestras
-          </button>
-        </div>
+      <header className="home-heading">
+        <p className="eyebrow">PUNTO A PUNTO</p>
+        <h1>¿Qué vas a tejer?</h1>
       </header>
-      <div className="backup-line">
-        <label className="file-button">
-          Importar respaldo JSON
+      <div className="start-actions">
+        <label className="file-button primary start-action">
+          <span className="start-title">Empezar con una imagen</span>
+          <span className="start-hint">
+            Un pixel art o la captura de un patrón
+          </span>
           <input
             type="file"
-            accept=".json,application/json"
+            accept="image/png,image/jpeg,image/webp,image/gif,image/bmp"
             onChange={(event) => {
               const file = event.target.files?.[0];
               event.target.value = '';
-              if (file) void importFile(file);
+              if (file) {
+                setError('');
+                setImageFile(file);
+              }
             }}
           />
         </label>
-        <p>
-          Los proyectos se guardan en este navegador. Exporta un JSON para
-          conservar un respaldo.
-        </p>
+        <button className="start-action" onClick={() => setCreating(true)}>
+          <span className="start-title">Dibujar desde cero</span>
+          <span className="start-hint">
+            Eliges la medida y pintas punto a punto
+          </span>
+        </button>
       </div>
       {installTip && (
         <aside className="notice" role="status">
           <p>
-            Para conservar mejor tus diseños y abrir la app sin conexión, en
-            Safari toca Compartir y «Agregar a la pantalla de inicio».
+            Para no perder tus diseños, en Safari toca Compartir y «Agregar a la
+            pantalla de inicio».
           </p>
           <button onClick={() => setInstallTip(false)}>Entendido</button>
         </aside>
-      )}
-      {overdue.length > 0 && (
-        <p className="subtle" role="status">
-          Hace más de 7 días que{' '}
-          {overdue.length === 1
-            ? 'este proyecto no tiene'
-            : 'estos proyectos no tienen'}{' '}
-          un respaldo exportado: {overdue.join(', ')}. Exporta un JSON para
-          conservarlo.
-        </p>
       )}
       {error && (
         <p role="alert" className="error">
@@ -522,32 +532,35 @@ export default function App({
           {notice}
         </p>
       )}
+      <h2 className="section-title">Tus proyectos</h2>
+      {overdue.length > 0 && (
+        <p className="subtle" role="status">
+          Hace más de 7 días que{' '}
+          {overdue.length === 1
+            ? 'este proyecto no tiene'
+            : 'estos proyectos no tienen'}{' '}
+          una copia guardada: {overdue.join(', ')}. Usa «Más» y «Guardar copia».
+        </p>
+      )}
       {!projects.length ? (
-        <section className="empty-state">
-          <p className="eyebrow">UN DISEÑO EMPIEZA CON UNA MUESTRA</p>
-          <h2>Aquí aparecerá tu primer tejido</h2>
-          <p>Elige cuánto debe medir y dibuja punto a punto.</p>
-          <button className="primary" onClick={() => setCreating(true)}>
-            Crear mi primer proyecto
-          </button>
-        </section>
+        <p className="empty-state">
+          Aquí aparecerá lo que diseñes. Se guarda solo en este dispositivo.
+        </p>
       ) : (
         <ul className="project-list">
           {[...projects]
             .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
             .map((project) => (
               <li key={project.id}>
+                <ProjectThumb project={project} />
                 <div className="project-info">
-                  <h2>{project.name}</h2>
-                  <p>
-                    {project.cols} puntos × {project.rows} filas ·{' '}
-                    {project.construction === 'flat'
-                      ? 'En plano'
-                      : 'En redondo'}
-                  </p>
+                  <h3>{project.name}</h3>
                   <p className="subtle">
-                    Última edición:{' '}
-                    {new Date(project.updatedAt).toLocaleString('es')}
+                    {project.cols} × {project.rows} puntos ·{' '}
+                    {new Date(project.updatedAt).toLocaleDateString('es', {
+                      day: 'numeric',
+                      month: 'short',
+                    })}
                   </p>
                 </div>
                 <div className="project-actions">
@@ -570,34 +583,64 @@ export default function App({
                   >
                     Tejer <span className="sr-only">{project.name}</span>
                   </button>
-                  <button
-                    onClick={() => {
-                      void duplicate(project);
-                    }}
-                  >
-                    Duplicar <span className="sr-only">{project.name}</span>
-                  </button>
-                  <button onClick={() => download(project)}>
-                    Exportar <span className="sr-only">{project.name}</span>
-                  </button>
-                  <button
-                    className="danger"
-                    onClick={() =>
-                      setConfirmation({
-                        title: 'Borrar proyecto',
-                        message: `¿Borrar «${project.name}» de este dispositivo? Conserva un respaldo JSON si quieres recuperarlo.`,
-                        confirmLabel: 'Borrar proyecto',
-                        action: () => remove(project),
-                      })
-                    }
-                  >
-                    Borrar <span className="sr-only">{project.name}</span>
-                  </button>
+                  <details className="more">
+                    <summary>
+                      Más <span className="sr-only">sobre {project.name}</span>
+                    </summary>
+                    <div className="more-actions">
+                      <button
+                        onClick={() => {
+                          void duplicate(project);
+                        }}
+                      >
+                        Duplicar
+                      </button>
+                      <button onClick={() => download(project)}>
+                        Guardar copia
+                      </button>
+                      <button
+                        className="danger"
+                        onClick={() =>
+                          setConfirmation({
+                            title: 'Borrar proyecto',
+                            message: `¿Borrar «${project.name}» de este dispositivo? Si quieres recuperarlo después, guarda antes una copia.`,
+                            confirmLabel: 'Borrar proyecto',
+                            action: () => remove(project),
+                          })
+                        }
+                      >
+                        Borrar
+                      </button>
+                    </div>
+                  </details>
                 </div>
               </li>
             ))}
         </ul>
       )}
+      <footer className="home-footer">
+        <button
+          className="quiet"
+          onClick={() => {
+            setCalibratingId(undefined);
+            setManagingProfiles(true);
+          }}
+        >
+          Mis muestras
+        </button>
+        <label className="file-button quiet">
+          Abrir una copia guardada
+          <input
+            type="file"
+            accept=".json,application/json"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (file) void importFile(file);
+            }}
+          />
+        </label>
+      </footer>
       {confirmation && (
         <ConfirmDialog
           title={confirmation.title}

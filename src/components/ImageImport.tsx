@@ -28,38 +28,49 @@ import ImagePreview from './ImagePreview';
 interface Props {
   profiles: GaugeProfile[];
   project?: Project;
+  initialFile?: File;
   onCancel(): void;
   onComplete(project: Project): void;
 }
-const titles = [
-  'Elegir imagen',
-  'Recortar el dibujo',
-  'Cuadros del dibujo',
-  'Elegir los colores',
-  'Tu dibujo y tu muestra',
-  'Colocar en la pieza',
-];
+
+type Phase = 'pick' | 'read' | 'place';
+type Panel = 'crop' | 'grid' | 'colors' | null;
+type Stage = 'drawing' | 'source';
+
+const ACCEPTED = 'image/png,image/jpeg,image/webp,image/gif,image/bmp';
+const MAX_FILE_BYTES = 64 * 1024 * 1024;
+
+function nameFromFile(file: File): string {
+  const base = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ');
+  const words = base.trim();
+  // Camera and chat exports carry meaningless names such as IMG_2041.
+  if (
+    !/[a-záéíóúñ]{3}/i.test(words) ||
+    /^(img|image|screenshot)\b/i.test(words)
+  )
+    return 'Mi diseño';
+  return (words.charAt(0).toUpperCase() + words.slice(1)).slice(0, 60);
+}
 
 export default function ImageImport({
   profiles,
   project,
+  initialFile,
   onCancel,
   onComplete,
 }: Props) {
-  const [step, setStep] = useState(0);
+  const [phase, setPhase] = useState<Phase>('pick');
+  const [panel, setPanel] = useState<Panel>(null);
+  const [stage, setStage] = useState<Stage>('drawing');
   const [image, setImage] = useState<PixelImage>();
   const [cropped, setCropped] = useState<PixelImage>();
   const [crop, setCrop] = useState<Crop>();
   const [mesh, setMesh] = useState<ImageMesh>();
   const [inspection, setInspection] = useState<GridInspection>();
-  const [gridPreview, setGridPreview] = useState<{
-    mesh: ImageMesh;
-    drawing: ImportedDrawing;
-  }>();
-  const [previewPending, setPreviewPending] = useState(false);
+  const [reading, setReading] = useState(false);
   const [photo, setPhoto] = useState(false);
-  const [cols, setCols] = useState('20');
-  const [rows, setRows] = useState('24');
+  const [cols, setCols] = useState('');
+  const [rows, setRows] = useState('');
   const [drawing, setDrawing] = useState<ImportedDrawing>();
   const [samples, setSamples] = useState<Rgba[]>([]);
   const [maximum, setMaximum] = useState(12);
@@ -84,22 +95,14 @@ export default function ImageImport({
   const jobs = useRef<ImageJobs | null>(null);
   const request = useRef(0);
   const mounted = useRef(true);
+  const opened = useRef(false);
   const drag = useRef<{ corner: 'start' | 'end'; crop: Crop } | null>(null);
   const confirmedCounts = useRef<{ cols?: number; rows?: number }>({});
   const cropRef = useRef<HTMLDivElement>(null);
   const profile = profiles.find((p) => p.id === profileId)!;
   const { stitchWidthCm, rowHeightCm } = gauge(profile);
-  const format = new Intl.NumberFormat('es', { maximumFractionDigits: 2 });
-
-  useEffect(() => {
-    mounted.current = true;
-    jobs.current = new ImageJobs();
-    return () => {
-      mounted.current = false;
-      jobs.current?.dispose();
-      jobs.current = null;
-    };
-  }, []);
+  const stitchRatio = rowHeightCm / stitchWidthCm;
+  const format = new Intl.NumberFormat('es', { maximumFractionDigits: 1 });
 
   async function run(job: ImageJob) {
     const serial = ++request.current;
@@ -123,11 +126,68 @@ export default function ImageImport({
     }
   }
 
+  // Crop, grid and colours are all read in one go so the first thing the
+  // user sees is her drawing, not a form.
+  async function analyze(source: PixelImage, area: Crop) {
+    const result = await run({ kind: 'detect', image: source, crop: area });
+    if (!result?.image) return;
+    const isPhoto = result.inspection?.kind === 'photo';
+    const found = Boolean(result.mesh) || isPhoto;
+    confirmedCounts.current = {};
+    setCropped(result.image);
+    setMesh(result.mesh ?? undefined);
+    setInspection(result.inspection);
+    setPhoto(isPhoto);
+    setCols(result.mesh ? String(result.mesh.cols) : isPhoto ? '60' : '');
+    setRows(result.mesh ? String(result.mesh.rows) : '');
+    setDrawing(undefined);
+    setSamples([]);
+    setMappings({});
+    setPanel(found ? null : 'grid');
+    setStage(found ? 'drawing' : 'source');
+    setPhase('read');
+  }
+
+  async function openFile(file: File) {
+    if (file.size > MAX_FILE_BYTES) {
+      setError('El archivo supera 64 MB. Guarda una copia más pequeña.');
+      return;
+    }
+    const decoded = await run({ kind: 'decode', file });
+    if (!decoded?.image) return;
+    const area = decoded.crop ?? {
+      x: 0,
+      y: 0,
+      width: decoded.image.width,
+      height: decoded.image.height,
+    };
+    if (!project) setName(nameFromFile(file));
+    setImage(decoded.image);
+    setCrop(area);
+    await analyze(decoded.image, area);
+  }
+
+  useEffect(() => {
+    mounted.current = true;
+    jobs.current = new ImageJobs();
+    if (initialFile && !opened.current) {
+      opened.current = true;
+      void openFile(initialFile);
+    }
+    return () => {
+      mounted.current = false;
+      jobs.current?.dispose();
+      jobs.current = null;
+    };
+    // The worker and the first file are set up once per mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const meshState = useMemo(() => {
     try {
-      if (!cropped || step < 2) return { mesh, error: '' };
+      if (!cropped || phase === 'pick') return { mesh, error: '' };
       if (!cols || (!photo && !rows))
-        throw new Error('Completa los dos números de cuadros.');
+        throw new Error('Escribe cuántos cuadros tiene de ancho y de alto.');
       const value = photo
         ? photoMesh(cropped, Number(cols), stitchWidthCm, rowHeightCm)
         : mesh?.cols === Number(cols) && mesh.rows === Number(rows)
@@ -137,42 +197,48 @@ export default function ImageImport({
     } catch (reason) {
       return {
         mesh: undefined,
-        error: reason instanceof Error ? reason.message : 'Revisa la rejilla.',
+        error: reason instanceof Error ? reason.message : 'Revisa los cuadros.',
       };
     }
-  }, [cropped, step, cols, rows, photo, mesh, stitchWidthCm, rowHeightCm]);
+  }, [cropped, phase, cols, rows, photo, mesh, stitchWidthCm, rowHeightCm]);
   const currentMesh = meshState.mesh;
   const meshError = meshState.error;
 
+  // Any change to the crop or the grid re-reads the drawing by itself.
   useEffect(() => {
-    if (step !== 2 || !cropped || !currentMesh) return;
+    if (phase !== 'read' || !cropped || !currentMesh) return;
     let cancelled = false;
     const timer = setTimeout(() => {
-      setPreviewPending(true);
+      setReading(true);
       void jobs
         .current!.run(
-          { kind: 'sample', image: cropped, mesh: currentMesh, maximum },
+          { kind: 'sample', image: cropped, mesh: currentMesh, maximum: 12 },
           () => {},
         )
         .then((result) => {
-          if (!cancelled && result.drawing)
-            setGridPreview({ mesh: currentMesh, drawing: result.drawing });
+          if (cancelled || !result.drawing || !result.samples) return;
+          setDrawing(result.drawing);
+          setSamples(result.samples);
+          setMaximum(Math.max(2, result.drawing.palette.length));
+          setMergeFrom(0);
+          setMergeTo(Math.min(1, result.drawing.palette.length - 1));
+          if (result.drawing.background === null) setPanel('colors');
         })
         .catch(() => {
           if (!cancelled)
             setError(
-              'No se pudo preparar la comprobación del dibujo. Revisa los números de cuadros.',
+              'No se pudo leer el dibujo. Revisa el recorte y los cuadros.',
             );
         })
         .finally(() => {
-          if (!cancelled) setPreviewPending(false);
+          if (!cancelled) setReading(false);
         });
     }, 180);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [step, cropped, currentMesh, maximum]);
+  }, [phase, cropped, currentMesh]);
 
   function correctCount(axis: 'cols' | 'rows', value: string) {
     if (axis === 'cols') setCols(value);
@@ -204,23 +270,6 @@ export default function ImageImport({
     );
   }
 
-  async function readGrid() {
-    if (!cropped || !currentMesh) return;
-    const result = await run({
-      kind: 'sample',
-      image: cropped,
-      mesh: currentMesh,
-      maximum,
-    });
-    if (!result?.drawing || !result.samples) return;
-    setDrawing(result.drawing);
-    setSamples(result.samples);
-    setMaximum(Math.max(2, result.drawing.palette.length));
-    setMergeFrom(0);
-    setMergeTo(Math.min(1, result.drawing.palette.length - 1));
-    setStep(3);
-  }
-
   async function changeMaximum(value: number) {
     setMaximum(value);
     if (!drawing) return;
@@ -237,27 +286,42 @@ export default function ImageImport({
       setMergeTo(Math.min(1, result.drawing.palette.length - 1));
     }
   }
-  const colorsPreview = useMemo(
+
+  function chooseBackground(background: number) {
+    if (!drawing) return;
+    setDrawing({
+      ...drawing,
+      background,
+      cells: drawing.cells.map((value, i) =>
+        drawing.transparent?.[i] ? background : value,
+      ),
+    });
+  }
+
+  function togglePanel(next: Exclude<Panel, null>) {
+    const opening = panel !== next;
+    setPanel(opening ? next : null);
+    if (opening && next === 'grid') setStage('source');
+    if (opening && next === 'colors') setStage('drawing');
+  }
+
+  const readPreview = useMemo(
     () =>
       drawing && drawing.background !== null
         ? previewDrawingOnBackground(drawing)
         : drawing,
     [drawing],
   );
-  const drawingBounds =
-    drawing && drawing.background !== null
-      ? designBounds(drawing, drawing.background)
-      : null;
 
   let placement: ReturnType<typeof planImagePlacement> | undefined;
   let scaled: ImportedDrawing | undefined;
   let placementError = '';
   let fractional = false;
   let base: Project | undefined;
-  if (drawing && step === 5) {
+  if (drawing && phase === 'place') {
     try {
       if (drawing.background === null)
-        throw new Error('Elige un color de fondo antes de colocar el dibujo.');
+        throw new Error('Elige un color de fondo antes de continuar.');
       const size = project
         ? { cols: project.cols, rows: project.rows }
         : unit === 'cm'
@@ -267,7 +331,7 @@ export default function ImageImport({
         !project &&
         (!width || !height || Number(width) <= 0 || Number(height) <= 0)
       )
-        throw new Error('Escribe dos medidas positivas.');
+        throw new Error('Escribe el ancho y el alto de la pieza.');
       validateEditorSize(size.cols, size.rows);
       base = project ?? {
         id: 'new-image-project',
@@ -312,33 +376,41 @@ export default function ImageImport({
       ? designBounds(placement?.centering.grid ?? scaled, scaled.background)
       : null;
   const report = placement?.centering.margins;
-  const scaledPreview =
-    scaled && project
-      ? {
-          ...scaled,
-          palette: scaled.palette.map((entry, i) => {
-            const id =
-              i === scaled.background ? project.backgroundColorId : mappings[i];
-            return project.palette.find((color) => color.id === id) ?? entry;
-          }),
-        }
-      : scaled;
-  const profileSelect = !project && (
-    <label>
-      Muestra para tejer
-      <select
-        value={profileId}
-        disabled={photo && step !== 2}
-        onChange={(e) => setProfileId(e.target.value)}
-      >
-        {profiles.map((entry) => (
-          <option key={entry.id} value={entry.id}>
-            {entry.name}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
+  const pieceCols = grow ? placement?.minimumCols : base?.cols;
+  const pieceRows = grow ? placement?.minimumRows : base?.rows;
+  // The finished piece is the preview: what she sees is what gets created.
+  const placePreview: ImportedDrawing | undefined = placement?.project
+    ? {
+        cols: placement.project.cols,
+        rows: placement.project.rows,
+        cells: placement.project.cells,
+        palette: [...placement.project.palette],
+        background: Math.max(
+          0,
+          placement.project.palette.findIndex(
+            (color) => color.id === placement.project!.backgroundColorId,
+          ),
+        ),
+      }
+    : scaled;
+
+  function finish() {
+    if (!placement?.project) return;
+    const palette = placement.project.palette.map((color) => ({
+      ...color,
+      name: color.name.trim() || 'Color',
+    }));
+    onComplete(
+      project
+        ? { ...placement.project, palette }
+        : {
+            ...placement.project,
+            palette,
+            id: createId(),
+            name: name.trim() || 'Mi diseño',
+          },
+    );
+  }
 
   function moveCrop(event: React.PointerEvent<HTMLButtonElement>) {
     if (!drag.current || !image || !cropRef.current) return;
@@ -379,13 +451,24 @@ export default function ImageImport({
       });
   }
 
-  return (
-    <section className="image-import" aria-label="Importar imagen">
-      <header className="import-heading">
-        <button onClick={onCancel}>Cancelar</button>
-        <p className="eyebrow">IMAGEN · PASO {step + 1} DE 6</p>
-      </header>
-      <h1>{titles[step]}</h1>
+  const filePicker = (label: string, className: string) => (
+    <label className={`file-button ${className}`}>
+      {label}
+      <input
+        type="file"
+        accept={ACCEPTED}
+        disabled={Boolean(busy)}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          if (file) void openFile(file);
+        }}
+      />
+    </label>
+  );
+
+  const status = (
+    <>
       {busy && (
         <div className="notice" role="status">
           <p>{busy}</p>
@@ -397,750 +480,730 @@ export default function ImageImport({
           {error}
         </p>
       )}
-      {step === 0 && (
-        <>
-          <p>
-            Abre una captura de un patrón o un dibujo. Todo se procesa aquí; tu
-            imagen no sale de este dispositivo.
-          </p>
-          <label className="file-button primary">
-            Elegir imagen
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif,image/bmp"
-              disabled={Boolean(busy)}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                event.target.value = '';
-                if (!file) return;
-                if (file.size > 64 * 1024 * 1024) {
-                  setError(
-                    'El archivo supera 64 MB. Guarda una copia más pequeña.',
-                  );
-                  return;
-                }
-                void run({ kind: 'decode', file }).then((result) => {
-                  if (!result?.image) return;
-                  setImage(result.image);
-                  setCrop(result.crop);
-                  setStep(1);
-                });
-              }}
-            />
-          </label>
-          <p className="subtle">
-            Las imágenes grandes se reducen a un máximo de 1600 píxeles por lado
-            antes del análisis.
-          </p>
-        </>
-      )}
-      {step === 1 && image && crop && (
-        <>
-          <p>
-            Deja solo el dibujo, sin números ni texto. Arrastra las dos esquinas
-            del marco. Si necesitas más precisión, abre «Ajuste fino».
-          </p>
-          <div className="crop-preview" ref={cropRef}>
-            <ImagePreview image={image} crop={crop} />
-            {(['start', 'end'] as const).map((corner) => (
-              <button
-                key={corner}
-                className="crop-handle"
-                aria-label={
-                  corner === 'start'
-                    ? 'Esquina superior izquierda del recorte'
-                    : 'Esquina inferior derecha del recorte'
-                }
-                style={{
-                  left: `clamp(22px, ${((corner === 'start' ? crop.x : crop.x + crop.width) / image.width) * 100}%, calc(100% - 22px))`,
-                  top: `clamp(22px, ${((corner === 'start' ? crop.y : crop.y + crop.height) / image.height) * 100}%, calc(100% - 22px))`,
-                }}
-                onPointerDown={(e) => {
-                  drag.current = { corner, crop };
-                  e.currentTarget.setPointerCapture(e.pointerId);
-                }}
-                onPointerMove={moveCrop}
-                onPointerUp={() => {
-                  drag.current = null;
-                }}
-                onPointerCancel={() => {
-                  drag.current = null;
-                }}
-              >
-                ⌖
-              </button>
-            ))}
-          </div>
+    </>
+  );
+
+  if (phase === 'pick')
+    return (
+      <section className="image-import" aria-label="Importar imagen">
+        <header className="flow-bar">
           <button
+            className="quiet"
+            aria-label="Volver"
             disabled={Boolean(busy)}
-            onClick={() => {
-              void run({ kind: 'rotate', image }).then((result) => {
-                if (result?.image) {
-                  setImage(result.image);
-                  setCrop(result.crop);
-                }
-              });
-            }}
+            onClick={onCancel}
           >
-            Girar 90°
+            ←
           </button>
-          <details className="crop-fine">
-            <summary>Ajuste fino</summary>
-            <div className="import-fields">
-              {(['x', 'y', 'width', 'height'] as const).map((field) => (
-                <label key={field}>
-                  {
-                    {
-                      x: 'Desde la izquierda (px)',
-                      y: 'Desde arriba (px)',
-                      width: 'Ancho del recorte (px)',
-                      height: 'Alto del recorte (px)',
-                    }[field]
+          <h1>{project ? 'Añadir una imagen' : 'Empezar con una imagen'}</h1>
+        </header>
+        {status}
+        {!busy && (
+          <>
+            <p>
+              Abre un pixel art o la captura de un patrón. La app lee los
+              cuadros y los colores por ti. La imagen no sale de este
+              dispositivo.
+            </p>
+            {filePicker('Elegir imagen', 'primary')}
+          </>
+        )}
+      </section>
+    );
+
+  if (phase === 'read' && cropped) {
+    const cropping = panel === 'crop' && image && crop;
+    const smallCells =
+      !photo &&
+      (inspection?.small ||
+        (currentMesh &&
+          Math.min(
+            cropped.width / currentMesh.cols,
+            cropped.height / currentMesh.rows,
+          ) < 6));
+    const background =
+      drawing && drawing.background !== null
+        ? drawing.palette[drawing.background]
+        : undefined;
+    const ready = Boolean(drawing && background && currentMesh && !reading);
+    return (
+      <section className="image-import" aria-label="Importar imagen">
+        <header className="flow-bar">
+          <button
+            className="quiet"
+            aria-label="Cancelar y volver"
+            onClick={onCancel}
+          >
+            ←
+          </button>
+          <h1>Tu dibujo</h1>
+          <p className="flow-step">1 de 2</p>
+        </header>
+        {status}
+        <div className={cropping ? 'stage cropping' : 'stage'}>
+          {cropping ? (
+            <div className="crop-preview" ref={cropRef}>
+              <ImagePreview image={image} crop={crop} />
+              {(['start', 'end'] as const).map((corner) => (
+                <button
+                  key={corner}
+                  className="crop-handle"
+                  aria-label={
+                    corner === 'start'
+                      ? 'Esquina superior izquierda del recorte'
+                      : 'Esquina inferior derecha del recorte'
                   }
-                  <input
-                    type="number"
-                    min={field === 'x' || field === 'y' ? 0 : 1}
-                    max={
-                      field === 'x' || field === 'width'
-                        ? image.width
-                        : image.height
-                    }
-                    value={crop[field]}
-                    onChange={(e) => {
-                      const value = Math.round(Number(e.target.value));
-                      const next = {
-                        ...crop,
-                        [field]: Math.max(
-                          field === 'x' || field === 'y' ? 0 : 1,
-                          value,
-                        ),
-                      };
-                      next.x = Math.min(next.x, image.width - 1);
-                      next.y = Math.min(next.y, image.height - 1);
-                      next.width = Math.min(next.width, image.width - next.x);
-                      next.height = Math.min(
-                        next.height,
-                        image.height - next.y,
-                      );
-                      setCrop(next);
-                    }}
-                  />
-                </label>
+                  style={{
+                    left: `clamp(22px, ${((corner === 'start' ? crop.x : crop.x + crop.width) / image.width) * 100}%, calc(100% - 22px))`,
+                    top: `clamp(22px, ${((corner === 'start' ? crop.y : crop.y + crop.height) / image.height) * 100}%, calc(100% - 22px))`,
+                  }}
+                  onPointerDown={(e) => {
+                    drag.current = { corner, crop };
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                  }}
+                  onPointerMove={moveCrop}
+                  onPointerUp={() => {
+                    drag.current = null;
+                  }}
+                  onPointerCancel={() => {
+                    drag.current = null;
+                  }}
+                >
+                  ⌖
+                </button>
               ))}
             </div>
-          </details>
-          <button
-            className="primary"
-            disabled={Boolean(busy)}
-            onClick={() => {
-              void run({ kind: 'detect', image, crop }).then((result) => {
-                if (!result?.image) return;
-                setCropped(result.image);
-                setMesh(result.mesh ?? undefined);
-                setInspection(result.inspection);
-                confirmedCounts.current = {};
-                const isPhoto = result.inspection?.kind === 'photo';
-                setPhoto(isPhoto);
-                setCols(
-                  result.mesh ? String(result.mesh.cols) : isPhoto ? '60' : '',
-                );
-                setRows(result.mesh ? String(result.mesh.rows) : '');
-                setStep(2);
-              });
-            }}
-          >
-            Usar este recorte
-          </button>
-        </>
-      )}
-      {step === 2 && cropped && (
-        <>
-          {photo ? (
-            <p className="notice">
-              No se encontraron cuadros: esta imagen no parece pixel art. Elige
-              el ancho en puntos; conservaremos la proporción al tejer. Hará
-              falta retocar el resultado en el editor.
-            </p>
-          ) : inspection?.kind === 'uncertain' ? (
-            <p className="notice">
-              No pude confirmar una rejilla en ambos ejes. Indica los cuadros de
-              ancho y de alto; con uno de tus números intentaré encontrar el
-              otro. Comprueba el dibujo leído antes de continuar.
-            </p>
+          ) : stage === 'source' || !readPreview ? (
+            <ImagePreview image={cropped} mesh={currentMesh} />
           ) : (
-            <p>
-              Comprueba que las líneas naranjas coinciden con los cuadros.
-              Corrige los números si hace falta; la rejilla se actualiza al
-              momento.
-            </p>
+            <ImagePreview drawing={readPreview} stitchRatio={stitchRatio} />
           )}
-          {!photo &&
-            (inspection?.small ||
-              (currentMesh &&
-                Math.min(
-                  cropped.width / currentMesh.cols,
-                  cropped.height / currentMesh.rows,
-                ) < 6)) && (
-              <p className="notice">
-                La imagen es muy pequeña para leer los cuadros con seguridad
-                (menos de unos 6 px por cuadro). Intenta usar la imagen original
-                en vez de una captura de pantalla del chat. Aun así, puedes
-                comprobar y continuar con esta.
-              </p>
-            )}
-          <div className="mesh-comparison">
-            <section>
-              <h2>Imagen y rejilla</h2>
-              <ImagePreview image={cropped} mesh={currentMesh} />
-            </section>
-            <section aria-label="Comprobación del dibujo leído">
-              <h2>Dibujo leído</h2>
-              {currentMesh &&
-              gridPreview?.mesh === currentMesh &&
-              !previewPending ? (
-                <ImagePreview
-                  drawing={gridPreview.drawing}
-                  stitchRatio={rowHeightCm / stitchWidthCm}
-                />
-              ) : (
-                <p role="status">
-                  {currentMesh
-                    ? 'Leyendo los cuadros para comprobar el dibujo…'
-                    : 'Escribe ambos números para ver el dibujo leído.'}
-                </p>
-              )}
-            </section>
-          </div>
-          <div className="import-fields">
-            <label>
-              {photo
-                ? 'Ancho del resultado (puntos)'
-                : inspection?.kind === 'uncertain'
-                  ? '¿Cuántos cuadros tiene de ancho?'
-                  : 'Cuadros de ancho'}
-              <input
-                type="number"
-                min={1}
-                max={1000}
-                value={cols}
-                onChange={(e) =>
-                  photo
-                    ? setCols(e.target.value)
-                    : correctCount('cols', e.target.value)
-                }
-              />
-            </label>
-            {!photo && (
-              <label>
-                {inspection?.kind === 'uncertain'
-                  ? '¿Cuántos de alto?'
-                  : 'Cuadros de alto'}
-                <input
-                  type="number"
-                  min={1}
-                  max={1000}
-                  value={rows}
-                  onChange={(e) => correctCount('rows', e.target.value)}
-                />
-              </label>
+        </div>
+        {!cropping && (
+          <div className="stage-footer">
+            <p className="stage-caption" role="status">
+              {reading
+                ? 'Leyendo el dibujo…'
+                : drawing && currentMesh
+                  ? `${currentMesh.cols} × ${currentMesh.rows} cuadros · ${drawing.palette.length} colores${background ? ` · fondo ${background.name.toLowerCase()}` : ''}`
+                  : 'Falta saber cuántos cuadros tiene'}
+            </p>
+            {readPreview && (
+              <div className="segmented" role="group" aria-label="Qué ver">
+                <button
+                  aria-pressed={stage === 'drawing'}
+                  onClick={() => setStage('drawing')}
+                >
+                  Dibujo
+                </button>
+                <button
+                  aria-pressed={stage === 'source'}
+                  onClick={() => setStage('source')}
+                >
+                  Original
+                </button>
+              </div>
             )}
           </div>
-          {photo && (
-            <>
-              {profileSelect}
-              <p>
-                Resultado: {currentMesh?.cols ?? '—'} puntos ×{' '}
-                {currentMesh?.rows ?? '—'} filas.
-              </p>
+        )}
+        {photo && (
+          <p className="notice">
+            Esta imagen no tiene cuadros, así que la convierto como una foto.
+            Saldrá aproximada y habrá que retocarla en el editor.
+          </p>
+        )}
+        {!photo && inspection?.kind === 'uncertain' && !drawing && (
+          <p className="notice">
+            No pude contar los cuadros con seguridad. Dime cuántos tiene de
+            ancho y busco los de alto.
+          </p>
+        )}
+        {smallCells && (
+          <p className="notice">
+            La imagen es pequeña y puede leerse con errores. Si tienes la imagen
+            original, úsala en vez de una captura del chat.
+          </p>
+        )}
+        {drawing && drawing.background === null && (
+          <p className="notice">
+            ¿Cuál de los colores es el fondo? Tócalo en la lista de colores.
+          </p>
+        )}
+
+        <p className="adjust-label">¿Algo no se leyó bien?</p>
+        <div className="adjust-tabs" role="group" aria-label="Corregir">
+          {(
+            [
+              ['crop', 'Recorte'],
+              ['grid', 'Cuadros'],
+              ['colors', 'Colores'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              aria-expanded={panel === id}
+              aria-pressed={panel === id}
+              disabled={id === 'colors' && !drawing}
+              onClick={() => togglePanel(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {panel === 'crop' && image && crop && (
+          <div className="adjust-panel">
+            <p>Arrastra las dos esquinas hasta dejar solo el dibujo.</p>
+            <div className="import-actions">
               <button
+                disabled={Boolean(busy)}
                 onClick={() => {
-                  setPhoto(false);
-                  setMesh(undefined);
-                  setInspection({
-                    mesh: null,
-                    kind: 'uncertain',
-                    small: false,
+                  void run({ kind: 'rotate', image }).then((result) => {
+                    if (result?.image) {
+                      setImage(result.image);
+                      setCrop(
+                        result.crop ?? {
+                          x: 0,
+                          y: 0,
+                          width: result.image.width,
+                          height: result.image.height,
+                        },
+                      );
+                    }
                   });
-                  confirmedCounts.current = {};
-                  setCols('');
-                  setRows('');
                 }}
               >
-                La imagen sí tiene cuadros: corregir a mano
+                Girar
               </button>
-            </>
-          )}
-          {!photo && (
-            <button
-              onClick={() => {
-                setPhoto(true);
-                setCols('60');
-              }}
-            >
-              No es pixel art: conservar la proporción
-            </button>
-          )}
-          {meshError && (cols !== '' || rows !== '' || photo) && (
-            <p role="alert" className="error">
-              {meshError}
-            </p>
-          )}
-          <div className="import-actions">
-            <button disabled={Boolean(busy)} onClick={() => setStep(1)}>
-              ← Recorte
-            </button>
-            <button
-              className="primary"
-              disabled={Boolean(busy) || !currentMesh}
-              onClick={() => {
-                void readGrid();
-              }}
-            >
-              Leer colores
-            </button>
+              <button
+                className="primary"
+                disabled={Boolean(busy)}
+                onClick={() => {
+                  void analyze(image, crop);
+                }}
+              >
+                Usar este recorte
+              </button>
+            </div>
+            <details className="crop-fine">
+              <summary>Ajuste fino</summary>
+              <div className="import-fields">
+                {(['x', 'y', 'width', 'height'] as const).map((field) => (
+                  <label key={field}>
+                    {
+                      {
+                        x: 'Desde la izquierda (px)',
+                        y: 'Desde arriba (px)',
+                        width: 'Ancho del recorte (px)',
+                        height: 'Alto del recorte (px)',
+                      }[field]
+                    }
+                    <input
+                      type="number"
+                      min={field === 'x' || field === 'y' ? 0 : 1}
+                      max={
+                        field === 'x' || field === 'width'
+                          ? image.width
+                          : image.height
+                      }
+                      value={crop[field]}
+                      onChange={(e) => {
+                        const value = Math.round(Number(e.target.value));
+                        const next = {
+                          ...crop,
+                          [field]: Math.max(
+                            field === 'x' || field === 'y' ? 0 : 1,
+                            value,
+                          ),
+                        };
+                        next.x = Math.min(next.x, image.width - 1);
+                        next.y = Math.min(next.y, image.height - 1);
+                        next.width = Math.min(next.width, image.width - next.x);
+                        next.height = Math.min(
+                          next.height,
+                          image.height - next.y,
+                        );
+                        setCrop(next);
+                      }}
+                    />
+                  </label>
+                ))}
+              </div>
+            </details>
           </div>
-        </>
+        )}
+
+        {panel === 'grid' && (
+          <div className="adjust-panel">
+            {photo ? (
+              <>
+                <label>
+                  Ancho del resultado (puntos)
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={1000}
+                    value={cols}
+                    onChange={(e) => setCols(e.target.value)}
+                  />
+                </label>
+                {!project && (
+                  <label>
+                    Muestra para tejer
+                    <select
+                      value={profileId}
+                      onChange={(e) => setProfileId(e.target.value)}
+                    >
+                      {profiles.map((entry) => (
+                        <option key={entry.id} value={entry.id}>
+                          {entry.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <button
+                  onClick={() => {
+                    setPhoto(false);
+                    setMesh(undefined);
+                    setInspection({
+                      mesh: null,
+                      kind: 'uncertain',
+                      small: false,
+                    });
+                    confirmedCounts.current = {};
+                    setCols('');
+                    setRows('');
+                    setDrawing(undefined);
+                    setStage('source');
+                  }}
+                >
+                  Sí tiene cuadros, los cuento yo
+                </button>
+              </>
+            ) : (
+              <>
+                <p>
+                  Las líneas naranjas deben caer entre los cuadros. Cambia un
+                  número y la app busca el otro.
+                </p>
+                <div className="import-fields">
+                  <label>
+                    Cuadros de ancho
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={1000}
+                      value={cols}
+                      onChange={(e) => correctCount('cols', e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Cuadros de alto
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={1000}
+                      value={rows}
+                      onChange={(e) => correctCount('rows', e.target.value)}
+                    />
+                  </label>
+                </div>
+                <button
+                  onClick={() => {
+                    setPhoto(true);
+                    setCols('60');
+                  }}
+                >
+                  Es una foto, no tiene cuadros
+                </button>
+              </>
+            )}
+            {meshError && (cols !== '' || rows !== '' || photo) && (
+              <p role="alert" className="error">
+                {meshError}
+              </p>
+            )}
+          </div>
+        )}
+
+        {panel === 'colors' && drawing && (
+          <div className="adjust-panel">
+            <ul className="import-colors">
+              {drawing.palette.map((entry, i) => (
+                <li key={entry.id}>
+                  <span
+                    className="color-dot"
+                    style={{ backgroundColor: entry.hex }}
+                  />
+                  <input
+                    aria-label={`Nombre del color ${i + 1}`}
+                    maxLength={60}
+                    value={entry.name}
+                    onChange={(e) =>
+                      setDrawing({
+                        ...drawing,
+                        palette: drawing.palette.map((p, index) =>
+                          index === i ? { ...p, name: e.target.value } : p,
+                        ),
+                      })
+                    }
+                  />
+                  <button
+                    aria-pressed={drawing.background === i}
+                    onClick={() => chooseBackground(i)}
+                  >
+                    Fondo
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <label>
+              Cantidad de colores: {drawing.palette.length}
+              <input
+                type="range"
+                min={2}
+                max={12}
+                step={1}
+                value={maximum}
+                onChange={(e) => {
+                  void changeMaximum(Number(e.target.value));
+                }}
+              />
+            </label>
+            {drawing.palette.length > 2 && (
+              <details className="crop-fine">
+                <summary>Unir dos colores parecidos</summary>
+                <div className="import-fields">
+                  <label>
+                    Este color
+                    <select
+                      value={mergeFrom}
+                      onChange={(e) => setMergeFrom(Number(e.target.value))}
+                    >
+                      {drawing.palette.map((p, i) => (
+                        <option key={p.id} value={i}>
+                          {p.name || `Color ${i + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    pasa a ser
+                    <select
+                      value={mergeTo}
+                      onChange={(e) => setMergeTo(Number(e.target.value))}
+                    >
+                      {drawing.palette.map((p, i) => (
+                        <option key={p.id} value={i}>
+                          {p.name || `Color ${i + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <button
+                  disabled={Boolean(busy) || mergeFrom === mergeTo}
+                  onClick={() => {
+                    const next = mergeDrawingColors(
+                      drawing,
+                      mergeFrom,
+                      mergeTo,
+                    );
+                    setDrawing(next);
+                    setMergeFrom(0);
+                    setMergeTo(Math.min(1, next.palette.length - 1));
+                  }}
+                >
+                  Unir colores
+                </button>
+              </details>
+            )}
+          </div>
+        )}
+
+        <footer className="flow-actions">
+          {filePicker('Otra imagen', 'quiet')}
+          <button
+            className="primary"
+            disabled={!ready || Boolean(busy)}
+            onClick={() => {
+              setMappings({});
+              setPanel(null);
+              setPhase('place');
+            }}
+          >
+            Continuar
+          </button>
+        </footer>
+      </section>
+    );
+  }
+
+  return (
+    <section className="image-import" aria-label="Importar imagen">
+      <header className="flow-bar">
+        <button
+          className="quiet"
+          aria-label="Volver al dibujo"
+          onClick={() => setPhase('read')}
+        >
+          ←
+        </button>
+        <h1>{project ? 'Colocar el dibujo' : 'Tamaño de la pieza'}</h1>
+        <p className="flow-step">2 de 2</p>
+      </header>
+      <div className="stage">
+        {placePreview && (
+          <ImagePreview drawing={placePreview} stitchRatio={stitchRatio} />
+        )}
+      </div>
+      {placement && bounds && (
+        <p className="stage-summary" role="status">
+          El dibujo medirá{' '}
+          <strong>
+            {format.format(bounds.width * stitchWidthCm)} ×{' '}
+            {format.format(bounds.height * rowHeightCm)} cm
+          </strong>{' '}
+          ({bounds.width} puntos × {bounds.height} filas) en una pieza de{' '}
+          <strong>
+            {format.format((pieceCols ?? 0) * stitchWidthCm)} ×{' '}
+            {format.format((pieceRows ?? 0) * rowHeightCm)} cm
+          </strong>{' '}
+          ({pieceCols} × {pieceRows}).
+          {report &&
+            ` Quedan ${report.left} puntos de fondo a la izquierda y ${report.right} a la derecha, ${report.bottom} filas abajo y ${report.top} arriba.`}
+          {placement.centering.warning &&
+            placement.problem !== 'size' &&
+            ` ${placement.centering.warning}`}
+        </p>
       )}
-      {step === 3 && drawing && (
-        <>
-          <p>
-            {drawing.background === null
-              ? '¿Qué color debe tener el fondo? El contorno y las esquinas no lo deciden con claridad.'
-              : 'Comprueba el dibujo sobre una pieza más grande, rellena con el fondo elegido.'}
-          </p>
-          <ImagePreview
-            drawing={colorsPreview}
-            stitchRatio={rowHeightCm / stitchWidthCm}
-          />
+      {placementError && (
+        <p className="error" role="alert">
+          {placementError}
+        </p>
+      )}
+
+      {!project && (
+        <div className="import-fields">
           <label>
-            Máximo de colores: {maximum}
+            Ancho ({unit === 'cm' ? 'cm' : 'puntos'})
             <input
-              type="range"
-              min={2}
-              max={12}
-              step={1}
-              value={maximum}
+              type="number"
+              inputMode="decimal"
+              min={unit === 'cm' ? 0.1 : 1}
+              step={unit === 'cm' ? 'any' : 1}
+              value={width}
               onChange={(e) => {
-                void changeMaximum(Number(e.target.value));
+                setWidth(e.target.value);
+                setGrow(false);
               }}
             />
           </label>
-          <p>
-            Se usan {drawing.palette.length} colores. Los tonos parecidos ya
-            están unidos; puedes ajustar los nombres y el fondo.
-          </p>
-          <div className="import-colors">
-            {drawing.palette.map((entry, i) => (
-              <label key={entry.id}>
-                <span
-                  className="color-dot"
-                  style={{ backgroundColor: entry.hex }}
-                />
-                <span className="sr-only">Nombre del color {i + 1}</span>
-                <input
-                  maxLength={60}
-                  value={entry.name}
-                  onChange={(e) =>
-                    setDrawing({
-                      ...drawing,
-                      palette: drawing.palette.map((p, index) =>
-                        index === i ? { ...p, name: e.target.value } : p,
-                      ),
-                    })
-                  }
-                />
-              </label>
-            ))}
-          </div>
           <label>
-            Color de fondo
-            <select
-              value={drawing.background ?? ''}
+            Alto ({unit === 'cm' ? 'cm' : 'filas'})
+            <input
+              type="number"
+              inputMode="decimal"
+              min={unit === 'cm' ? 0.1 : 1}
+              step={unit === 'cm' ? 'any' : 1}
+              value={height}
               onChange={(e) => {
-                const background = Number(e.target.value);
-                setDrawing({
-                  ...drawing,
-                  background,
-                  cells: drawing.cells.map((v, i) =>
-                    drawing.transparent?.[i] ? background : v,
-                  ),
-                });
+                setHeight(e.target.value);
+                setGrow(false);
+              }}
+            />
+          </label>
+        </div>
+      )}
+
+      <p className="adjust-label" id="scale-label">
+        Tamaño del dibujo
+      </p>
+      <div
+        className="segmented wide"
+        role="group"
+        aria-labelledby="scale-label"
+      >
+        {(
+          [
+            ['1', 'Normal'],
+            ['2', 'Doble'],
+            ['3', 'Triple'],
+            ['fit', 'Llenar'],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            aria-pressed={scale === value}
+            onClick={() => {
+              setScale(value);
+              setGrow(false);
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {scale === 'fit' && (
+        <label>
+          Borde de fondo alrededor (puntos)
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            step={1}
+            value={margin}
+            onChange={(e) => setMargin(e.target.value)}
+          />
+        </label>
+      )}
+      {fractional && (
+        <p className="notice">
+          Para llenar la pieza el dibujo se estira un poco y puede perder
+          detalle. Míralo arriba antes de continuar.
+        </p>
+      )}
+      {placement?.problem === 'size' && (
+        <div role="alert" className="notice">
+          <p>
+            El dibujo no cabe en esa pieza. Puedes agrandarla a{' '}
+            {format.format(placement.minimumCols * stitchWidthCm)} ×{' '}
+            {format.format(placement.minimumRows * rowHeightCm)} cm o achicar el
+            dibujo.
+          </p>
+          <div className="import-actions">
+            <button onClick={() => setGrow(true)}>Agrandar la pieza</button>
+            <button
+              onClick={() => {
+                setScale('fit');
+                setMargin('0');
+                setGrow(false);
               }}
             >
-              <option value="" disabled>
-                Elige el color de fondo
-              </option>
-              {drawing.palette.map((entry, i) => (
-                <option key={entry.id} value={i}>
-                  {entry.name || `Color ${i + 1}`}
+              Achicar el dibujo
+            </button>
+          </div>
+        </div>
+      )}
+      {project &&
+        placement &&
+        (placement.problem === 'palette' ||
+          Object.values(mappings).some(Boolean)) && (
+          <div className="notice">
+            <p role={placement.problem === 'palette' ? 'alert' : 'status'}>
+              Con esta imagen serían {placement.paletteSize} colores y el máximo
+              es 12.
+              {placement.problem === 'palette' &&
+                ' Une algunos con los que ya tienes.'}
+            </p>
+            {drawing?.palette.map((entry, i) =>
+              i === drawing.background ? null : (
+                <label key={entry.id}>
+                  {entry.name}
+                  <select
+                    value={mappings[i] ?? ''}
+                    onChange={(e) =>
+                      setMappings({ ...mappings, [i]: e.target.value })
+                    }
+                  >
+                    <option value="">Color nuevo</option>
+                    {project.palette.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        Usar {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ),
+            )}
+          </div>
+        )}
+      {project && (
+        <p className="subtle">
+          Se coloca encima de lo que ya dibujaste. Si no te gusta, un solo
+          «Deshacer» lo quita.
+        </p>
+      )}
+
+      {!project && (
+        <details className="crop-fine">
+          <summary>Más opciones</summary>
+          <label>
+            Nombre del proyecto
+            <input
+              maxLength={120}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </label>
+          <label>
+            Cómo vas a tejer
+            <select
+              value={construction}
+              onChange={(e) =>
+                setConstruction(e.target.value === 'round' ? 'round' : 'flat')
+              }
+            >
+              <option value="flat">En plano</option>
+              <option value="round">En redondo (espiral continua)</option>
+            </select>
+          </label>
+          <label>
+            Muestra para tejer
+            <select
+              value={profileId}
+              disabled={photo}
+              onChange={(e) => setProfileId(e.target.value)}
+            >
+              {profiles.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.name}
                 </option>
               ))}
             </select>
           </label>
-          {drawing.palette.length > 1 && (
-            <fieldset>
-              <legend>Fusionar dos colores</legend>
-              <div className="import-fields">
-                <label>
-                  Color que se une
-                  <select
-                    value={mergeFrom}
-                    onChange={(e) => setMergeFrom(Number(e.target.value))}
-                  >
-                    {drawing.palette.map((p, i) => (
-                      <option key={p.id} value={i}>
-                        {p.name || `Color ${i + 1}`}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Color que se conserva
-                  <select
-                    value={mergeTo}
-                    onChange={(e) => setMergeTo(Number(e.target.value))}
-                  >
-                    {drawing.palette.map((p, i) => (
-                      <option key={p.id} value={i}>
-                        {p.name || `Color ${i + 1}`}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <button
-                disabled={Boolean(busy) || mergeFrom === mergeTo}
-                onClick={() => {
-                  const next = mergeDrawingColors(drawing, mergeFrom, mergeTo);
-                  setDrawing(next);
-                  setMergeFrom(0);
-                  setMergeTo(Math.min(1, next.palette.length - 1));
-                }}
-              >
-                Fusionar colores
-              </button>
-            </fieldset>
-          )}
-          <div className="import-actions">
-            <button disabled={Boolean(busy)} onClick={() => setStep(2)}>
-              ← Cuadros
-            </button>
-            <button
-              className="primary"
-              disabled={Boolean(busy) || drawing.background === null}
-              onClick={() => {
-                setMappings({});
-                setStep(4);
-              }}
-            >
-              Ver resultado
-            </button>
-          </div>
-        </>
-      )}
-      {step === 4 && drawing && (
-        <>
-          <ImagePreview
-            drawing={drawing}
-            stitchRatio={rowHeightCm / stitchWidthCm}
-          />
-          <p>
-            Dibujo: {drawingBounds?.width ?? 0} puntos ×{' '}
-            {drawingBounds?.height ?? 0} filas ·{' '}
-            {format.format((drawingBounds?.width ?? 0) * stitchWidthCm)} ×{' '}
-            {format.format((drawingBounds?.height ?? 0) * rowHeightCm)} cm.
-          </p>
-          {profileSelect}
-          {profile.approximate && (
-            <p className="notice">
-              Esta muestra es aproximada. Una muestra propia ajustará las
-              medidas a tu hilo.
+          {photo && (
+            <p className="subtle">
+              En una foto la muestra se elige en «Cuadros», en el paso anterior.
             </p>
-          )}
-          <p className="subtle">
-            {photo
-              ? 'La proporción se ha adaptado a la muestra del paso Cuadros.'
-              : 'Cada cuadro sigue siendo un punto. Así se verá con la proporción real de tu muestra.'}
-          </p>
-          {photo && !project && (
-            <p>
-              Cambiar la muestra requiere volver a Cuadros para recalcular las
-              filas.
-            </p>
-          )}
-          <div className="import-actions">
-            <button onClick={() => setStep(3)}>← Colores</button>
-            <button className="primary" onClick={() => setStep(5)}>
-              Elegir la pieza
-            </button>
-          </div>
-        </>
-      )}
-      {step === 5 && drawing && (
-        <>
-          {!project && (
-            <>
-              <label>
-                Nombre del proyecto
-                <input
-                  maxLength={120}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </label>
-              <label>
-                Cómo vas a tejer
-                <select
-                  value={construction}
-                  onChange={(e) =>
-                    setConstruction(
-                      e.target.value === 'round' ? 'round' : 'flat',
-                    )
-                  }
-                >
-                  <option value="flat">En plano</option>
-                  <option value="round">En redondo (espiral continua)</option>
-                </select>
-              </label>
-              <label>
-                Medir la pieza en
-                <select
-                  value={unit}
-                  onChange={(e) => {
-                    setUnit(e.target.value === 'cm' ? 'cm' : 'stitches');
-                    setWidth('40');
-                    setHeight('40');
-                    setGrow(false);
-                  }}
-                >
-                  <option value="cm">Centímetros</option>
-                  <option value="stitches">Puntos y filas</option>
-                </select>
-              </label>
-              <div className="import-fields">
-                <label>
-                  Ancho de la pieza ({unit === 'cm' ? 'cm' : 'puntos'})
-                  <input
-                    type="number"
-                    min={unit === 'cm' ? 0.1 : 1}
-                    step={unit === 'cm' ? 'any' : 1}
-                    value={width}
-                    onChange={(e) => {
-                      setWidth(e.target.value);
-                      setGrow(false);
-                    }}
-                  />
-                </label>
-                <label>
-                  Alto de la pieza ({unit === 'cm' ? 'cm' : 'filas'})
-                  <input
-                    type="number"
-                    min={unit === 'cm' ? 0.1 : 1}
-                    step={unit === 'cm' ? 'any' : 1}
-                    value={height}
-                    onChange={(e) => {
-                      setHeight(e.target.value);
-                      setGrow(false);
-                    }}
-                  />
-                </label>
-              </div>
-            </>
           )}
           <label>
-            Escala del dibujo
+            Medir la pieza en
             <select
-              value={scale}
+              value={unit}
               onChange={(e) => {
-                setScale(e.target.value);
+                setUnit(e.target.value === 'cm' ? 'cm' : 'stitches');
+                setWidth('40');
+                setHeight('40');
                 setGrow(false);
               }}
             >
-              <option value="1">×1 · un cuadro, un punto</option>
-              <option value="2">×2 · bloques de 2 × 2</option>
-              <option value="3">×3 · bloques de 3 × 3</option>
-              <option value="fit">Ajustar al ancho de la pieza</option>
+              <option value="cm">Centímetros</option>
+              <option value="stitches">Puntos y filas</option>
             </select>
           </label>
-          {scale === 'fit' && (
-            <>
-              <label>
-                Margen mínimo de fondo (puntos)
-                <input
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={margin}
-                  onChange={(e) => setMargin(e.target.value)}
-                />
-              </label>
-              <p className="subtle">
-                Se ajusta también el lado más largo para que quepa con ese
-                margen.
-              </p>
-            </>
-          )}
-          {fractional && (
-            <p className="notice">
-              Esta escala no es entera: el dibujo puede perder detalle. Revisa
-              la vista previa antes de colocarlo.
-            </p>
-          )}
-          {placementError && (
-            <p className="error" role="alert">
-              {placementError}
-            </p>
-          )}
-          {scaled && (
-            <>
-              <ImagePreview
-                drawing={scaledPreview}
-                stitchRatio={rowHeightCm / stitchWidthCm}
-              />
-              <p>
-                Dibujo: {bounds?.width ?? 0} puntos × {bounds?.height ?? 0}{' '}
-                filas · {format.format((bounds?.width ?? 0) * stitchWidthCm)} ×{' '}
-                {format.format((bounds?.height ?? 0) * rowHeightCm)} cm.
-              </p>
-            </>
-          )}
-          {placement && (
-            <>
-              <p>
-                Pieza: {grow ? placement.minimumCols : base?.cols} puntos ×{' '}
-                {grow ? placement.minimumRows : base?.rows} filas ·{' '}
-                {format.format(
-                  (grow ? placement.minimumCols : (base?.cols ?? 0)) *
-                    stitchWidthCm,
-                )}{' '}
-                ×{' '}
-                {format.format(
-                  (grow ? placement.minimumRows : (base?.rows ?? 0)) *
-                    rowHeightCm,
-                )}{' '}
-                cm.
-              </p>
-              {report && (
-                <p className="notice">
-                  Fondo: {report.left} puntos a la izquierda, {report.right} a
-                  la derecha; {report.bottom} filas abajo, {report.top} arriba.{' '}
-                  {placement.centering.warning ??
-                    'El diseño está exactamente centrado.'}
-                </p>
-              )}
-              {placement.problem === 'size' && (
-                <div role="alert" className="notice">
-                  <p>
-                    El dibujo no cabe. Puedes agrandar la pieza a{' '}
-                    {placement.minimumCols} × {placement.minimumRows} puntos (
-                    {format.format(placement.minimumCols * stitchWidthCm)} ×{' '}
-                    {format.format(placement.minimumRows * rowHeightCm)} cm) o
-                    reducir el dibujo.
-                  </p>
-                  <div className="import-actions">
-                    <button onClick={() => setGrow(true)}>
-                      Agrandar la pieza
-                    </button>
-                    <button
-                      onClick={() => {
-                        setScale('fit');
-                        setMargin('0');
-                        setGrow(false);
-                      }}
-                    >
-                      Reducir para que quepa
-                    </button>
-                  </div>
-                </div>
-              )}
-              {grow && (
-                <p role="status">
-                  Se agrandará la pieza al mínimo necesario para conservar el
-                  dibujo entero.
-                </p>
-              )}
-              {project &&
-                (placement.problem === 'palette' ||
-                  Object.values(mappings).some(Boolean)) && (
-                  <div className="notice">
-                    <p
-                      role={
-                        placement.problem === 'palette' ? 'alert' : 'status'
-                      }
-                    >
-                      Paleta combinada: {placement.paletteSize} colores; el
-                      máximo es 12.
-                      {placement.problem === 'palette'
-                        ? ' Fusiona colores importados con los del proyecto para continuar.'
-                        : ' Revisa las fusiones antes de colocar el dibujo.'}
-                    </p>
-                    {drawing.palette.map((entry, i) =>
-                      i === drawing.background ? null : (
-                        <label key={entry.id}>
-                          {entry.name}
-                          <select
-                            value={mappings[i] ?? ''}
-                            onChange={(e) =>
-                              setMappings({ ...mappings, [i]: e.target.value })
-                            }
-                          >
-                            <option value="">Añadir como color nuevo</option>
-                            {project.palette.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                Fusionar con {p.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      ),
-                    )}
-                  </div>
-                )}
-              {project && (
-                <p className="subtle">
-                  El fondo de la imagen deja visible lo que ya dibujaste. Los
-                  demás colores se colocan encima. Puedes deshacer toda la
-                  importación de una vez.
-                </p>
-              )}
-            </>
-          )}
-          <div className="import-actions">
-            <button onClick={() => setStep(4)}>← Resultado</button>
-            <button
-              className="primary"
-              disabled={!placement?.project || !name.trim()}
-              onClick={() => {
-                if (!placement?.project) return;
-                const next = {
-                  ...placement.project,
-                  palette: placement.project.palette.map((p) => ({
-                    ...p,
-                    name: p.name.trim() || 'Color',
-                  })),
-                };
-                onComplete(
-                  project
-                    ? next
-                    : {
-                        ...next,
-                        id: createId(),
-                        name: name.trim(),
-                        palette: next.palette.map((p) => ({
-                          ...p,
-                          name: p.name.trim() || 'Color',
-                        })),
-                      },
-                );
-              }}
-            >
-              {project
-                ? 'Importar en el proyecto'
-                : 'Crear proyecto con imagen'}
-            </button>
-          </div>
-        </>
+        </details>
       )}
+      {profile.approximate && !project && (
+        <p className="subtle">
+          Los centímetros salen de una muestra aproximada. Con tu propia muestra
+          serán exactos.
+        </p>
+      )}
+
+      <footer className="flow-actions">
+        <button
+          className="primary"
+          disabled={!placement?.project}
+          onClick={finish}
+        >
+          {project ? 'Añadir al proyecto' : 'Crear proyecto'}
+        </button>
+      </footer>
     </section>
   );
 }
