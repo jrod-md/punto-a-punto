@@ -1,6 +1,7 @@
 import { linePoints, selectionBounds } from '../core/editor';
 import type { CellPoint } from '../core/editor';
 import { gauge } from '../core/gauge';
+import { mirroredIndices } from '../core/mirror';
 import type { Bounds } from '../core/grid';
 import type { GaugeProfile, Progress, Project } from '../core/types';
 import { readingColumn } from '../core/weaving';
@@ -24,6 +25,7 @@ export interface CanvasOptions {
   tool: Tool;
   colorIndex: number;
   centers: boolean;
+  mirror?: boolean;
   selection: Bounds | null;
   weaving?: Progress;
   onStroke(indices: ReadonlySet<number>, color: number): void;
@@ -297,15 +299,17 @@ export class CanvasEngine {
         ctx.strokeRect(x + col * cw, rowY, cw, ch);
       }
     }
-    if (options.centers) {
+    if (options.centers || options.mirror) {
       ctx.strokeStyle = '#ac4b31';
       ctx.lineWidth = 1.8;
       ctx.setLineDash([6, 4]);
       ctx.beginPath();
       ctx.moveTo(x + (project.cols * cw) / 2, y);
       ctx.lineTo(x + (project.cols * cw) / 2, y + project.rows * ch);
-      ctx.moveTo(x, y + (project.rows * ch) / 2);
-      ctx.lineTo(x + project.cols * cw, y + (project.rows * ch) / 2);
+      if (options.centers) {
+        ctx.moveTo(x, y + (project.rows * ch) / 2);
+        ctx.lineTo(x + project.cols * cw, y + (project.rows * ch) / 2);
+      }
       ctx.stroke();
       ctx.setLineDash([]);
     }
@@ -432,11 +436,21 @@ export class CanvasEngine {
     const ctx = this.raster.getContext('2d');
     if (!ctx) return;
     ctx.fillStyle = options.project.palette[colorIndex]!.hex;
-    for (const point of linePoints(this.lastCell ?? cell, cell)) {
-      const index = point.row * options.project.cols + point.col;
+    const indices = linePoints(this.lastCell ?? cell, cell).map(
+      (point) => point.row * options.project.cols + point.col,
+    );
+    const stroke = options.mirror
+      ? mirroredIndices(options.project.cols, options.project.rows, indices)
+      : indices;
+    for (const index of stroke) {
       if (!this.stroke.has(index)) {
         this.stroke.add(index);
-        ctx.fillRect(point.col, options.project.rows - 1 - point.row, 1, 1);
+        ctx.fillRect(
+          index % options.project.cols,
+          options.project.rows - 1 - Math.floor(index / options.project.cols),
+          1,
+          1,
+        );
       }
     }
     this.lastCell = cell;

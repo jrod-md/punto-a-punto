@@ -1685,3 +1685,94 @@ label {
     grid-template-columns: 72px minmax(0, 1fr) auto;
   }
 }
+
+/* Examples and editor additions reuse the existing wool-and-garden pieces. */
+.examples {
+  margin: 0 0 28px;
+}
+.example-row {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 2px 0 8px;
+}
+.example-row button {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  flex: 0 0 92px;
+  padding: 10px 6px;
+  border: 0;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  font-size: 0.88rem;
+}
+.example-row .project-thumb {
+  width: 72px;
+  height: 72px;
+}
+.tool-bar {
+  overflow: visible;
+}
+.tool-caption {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.mirror-mark {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--garden);
+}
+.sheet-backdrop {
+  align-items: flex-end;
+  justify-content: center;
+}
+.more-sheet {
+  width: min(100%, 440px);
+  height: auto;
+  max-height: 75dvh;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  border-radius: var(--radius-l) var(--radius-l) 0 0;
+}
+.more-sheet .panel-heading {
+  margin-bottom: 8px;
+}
+.more-sheet h2 {
+  font-size: 1.2rem;
+}
+.sheet-actions {
+  display: grid;
+  gap: 6px;
+}
+.sheet-actions button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  min-height: 56px;
+  border: 0;
+  text-align: left;
+}
+.sheet-actions button[aria-pressed='true'] {
+  background: var(--garden-soft);
+  color: var(--garden-deep);
+}
+.sheet-actions .start-icon {
+  flex-shrink: 0;
+}
+.sheet-actions small {
+  display: block;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+.text-composer .stage .image-preview {
+  max-height: 27dvh;
+}
+.text-composer .stage-summary {
+  margin: 10px 0 16px;
+}
+.text-composer .segmented.wide {
+  margin-bottom: 12px;
+}

@@ -5,10 +5,12 @@ export default function EditorPanel({
   title,
   children,
   onClose,
+  sheet = false,
 }: {
   title: string;
   children: ReactNode;
   onClose(): void;
+  sheet?: boolean;
 }) {
   const box = useRef<HTMLElement>(null);
   const close = useRef<HTMLButtonElement>(null);
@@ -22,14 +24,14 @@ export default function EditorPanel({
   }, []);
   return (
     <div
-      className="panel-backdrop"
+      className={`panel-backdrop${sheet ? ' sheet-backdrop' : ''}`}
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       <section
         ref={box}
-        className="editor-panel"
+        className={`editor-panel${sheet ? ' more-sheet' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="panel-title"
