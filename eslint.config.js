@@ -19,16 +19,31 @@ export default tseslint.config(
     plugins: { 'react-hooks': reactHooks, 'react-refresh': reactRefresh },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      'react-refresh/only-export-components': [
+        'warn',
+        { allowConstantExport: true },
+      ],
     },
   },
   {
     files: ['src/core/**/*.{ts,tsx}'],
     rules: {
-      'no-restricted-imports': ['error', {
-        patterns: ['react', 'react/*', 'react-dom', 'react-dom/*', 'node:*'],
-      }],
-      'no-restricted-globals': ['error', 'window', 'document', 'navigator', 'fetch', 'localStorage', 'sessionStorage', 'indexedDB'],
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: ['react', 'react/*', 'react-dom', 'react-dom/*', 'node:*'],
+        },
+      ],
+      'no-restricted-globals': [
+        'error',
+        'window',
+        'document',
+        'navigator',
+        'fetch',
+        'localStorage',
+        'sessionStorage',
+        'indexedDB',
+      ],
     },
   },
 );

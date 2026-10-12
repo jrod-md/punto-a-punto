@@ -1,10 +1,11 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
+import { pwaPlugin } from './scripts/pwaPlugin';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), pwaPlugin()],
   test: {
     environment: 'node',
-    include: ['src/core/**/*.test.ts', 'src/editor/**/*.test.ts', 'src/storage/**/*.test.ts'],
+    include: ['src/**/*.test.ts'],
   },
 });

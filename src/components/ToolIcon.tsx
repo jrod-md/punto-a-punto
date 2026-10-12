@@ -8,5 +8,19 @@ const paths = {
   center: 'M12 2v20M2 12h20M6 6h12v12H6V6Z',
 };
 export default function ToolIcon({ name }: { name: keyof typeof paths }) {
-  return <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={paths[name]} /></svg>;
+  return (
+    <svg
+      aria-hidden="true"
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d={paths[name]} />
+    </svg>
+  );
 }

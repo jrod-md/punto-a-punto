@@ -29,7 +29,9 @@ export function validateDimensions(cols: number, rows: number): void {
 export function validateGrid(grid: Grid): void {
   validateDimensions(grid.cols, grid.rows);
   if (grid.cells.length !== grid.cols * grid.rows) {
-    throw new RangeError('La cantidad de celdas no coincide con la cuadrícula.');
+    throw new RangeError(
+      'La cantidad de celdas no coincide con la cuadrícula.',
+    );
   }
   for (const color of grid.cells) {
     requireInteger(color, 'El índice de color');
@@ -43,8 +45,13 @@ export function validateProject(project: Project): void {
     throw new RangeError('La paleta debe tener entre 1 y 12 colores.');
   }
   const ids = new Set(project.palette.map((color) => color.id));
-  if (ids.size !== project.palette.length || !ids.has(project.backgroundColorId)) {
-    throw new RangeError('Los colores deben tener identificadores únicos y un fondo válido.');
+  if (
+    ids.size !== project.palette.length ||
+    !ids.has(project.backgroundColorId)
+  ) {
+    throw new RangeError(
+      'Los colores deben tener identificadores únicos y un fondo válido.',
+    );
   }
   if (project.cells.some((color) => color >= project.palette.length)) {
     throw new RangeError('Hay celdas con colores que no están en la paleta.');
