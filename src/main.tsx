@@ -8,8 +8,12 @@ const root = document.getElementById('root');
 if (!root) throw new Error('No se encontró el contenedor de la aplicación.');
 
 async function start() {
-  if(await prepareOfflineApp())return;
-  createRoot(root!).render(<StrictMode><App /></StrictMode>);
+  if (await prepareOfflineApp()) return;
+  createRoot(root!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
   void registerOfflineApp();
 }
 void start();

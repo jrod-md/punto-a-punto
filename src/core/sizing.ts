@@ -9,7 +9,11 @@ export interface SizingResult {
   realHeightCm: number;
 }
 
-export function sizing(profile: GaugeProfile, targetWidthCm: number, targetHeightCm: number): SizingResult {
+export function sizing(
+  profile: GaugeProfile,
+  targetWidthCm: number,
+  targetHeightCm: number,
+): SizingResult {
   requireNonNegative(targetWidthCm, 'El ancho deseado');
   requireNonNegative(targetHeightCm, 'El alto deseado');
   const { stitchWidthCm, rowHeightCm } = gauge(profile);

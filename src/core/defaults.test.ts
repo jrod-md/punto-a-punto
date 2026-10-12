@@ -11,8 +11,13 @@ describe('factory defaults', () => {
       expect(profile.name).toContain('aproximado');
       expect(profile.carriedFactor).toBe(1.1);
       expect(profile.metersPerBall).toBeUndefined();
-      expect([profile.hookMm, profile.swatchStitches, profile.swatchRows, profile.swatchWidthCm, profile.swatchHeightCm])
-        .toEqual(index === 0 ? [3, 22, 24, 10, 10] : [4, 16, 18, 10, 10]);
+      expect([
+        profile.hookMm,
+        profile.swatchStitches,
+        profile.swatchRows,
+        profile.swatchWidthCm,
+        profile.swatchHeightCm,
+      ]).toEqual(index === 0 ? [3, 22, 24, 10, 10] : [4, 16, 18, 10, 10]);
       expect(gauge(profile).yarnPerStitchCm).toBe(index === 0 ? 2.6 : 3.8);
     }
   });

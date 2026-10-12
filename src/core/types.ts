@@ -1,6 +1,9 @@
 export type Construction = 'flat' | 'round';
 export type TapStep = number | 'color-run';
-export interface Progress { row: number; stitch: number }
+export interface Progress {
+  row: number;
+  stitch: number;
+}
 
 export interface GaugeProfile {
   id: string;

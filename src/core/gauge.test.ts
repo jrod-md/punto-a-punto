@@ -13,18 +13,29 @@ describe('gauge', () => {
     });
   });
 
-  it.each(['swatchStitches', 'swatchRows', 'swatchWidthCm', 'swatchHeightCm', 'yarnMeasuredCm', 'yarnMeasuredStitches'] as const)(
-    'rejects invalid divisors and measurements in %s', (field) => {
-      for (const value of [0, -1, NaN, Infinity]) {
-        expect(() => gauge({ ...TEST_PROFILE, [field]: value })).toThrow(RangeError);
-      }
-    },
-  );
+  it.each([
+    'swatchStitches',
+    'swatchRows',
+    'swatchWidthCm',
+    'swatchHeightCm',
+    'yarnMeasuredCm',
+    'yarnMeasuredStitches',
+  ] as const)('rejects invalid divisors and measurements in %s', (field) => {
+    for (const value of [0, -1, NaN, Infinity]) {
+      expect(() => gauge({ ...TEST_PROFILE, [field]: value })).toThrow(
+        RangeError,
+      );
+    }
+  });
 
   it('allows a zero carried factor and rejects invalid factors', () => {
-    expect(gauge({ ...TEST_PROFILE, carriedFactor: 0 }).carriedPerStitchCm).toBe(0);
+    expect(
+      gauge({ ...TEST_PROFILE, carriedFactor: 0 }).carriedPerStitchCm,
+    ).toBe(0);
     for (const carriedFactor of [-1, NaN, Infinity]) {
-      expect(() => gauge({ ...TEST_PROFILE, carriedFactor })).toThrow(RangeError);
+      expect(() => gauge({ ...TEST_PROFILE, carriedFactor })).toThrow(
+        RangeError,
+      );
     }
   });
 });
