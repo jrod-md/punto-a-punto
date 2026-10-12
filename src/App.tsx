@@ -8,6 +8,13 @@ import Editor from './components/Editor';
 import ProjectForm from './components/ProjectForm';
 import ImageImport from './components/ImageImport';
 import ProjectThumb from './components/ProjectThumb';
+import {
+  GridPencilIcon,
+  Meadow,
+  PictureIcon,
+  Sheep,
+  YarnBall,
+} from './components/Art';
 import ConfirmDialog from './components/ConfirmDialog';
 import Profiles from './components/Profiles';
 import { profileProjectNames } from './core/profiles';
@@ -483,12 +490,20 @@ export default function App({
   const overdue = overdueBackups(projects, backupDates, baselines, openedAt);
   return (
     <main className="page">
-      <header className="home-heading">
-        <p className="eyebrow">PUNTO A PUNTO</p>
-        <h1>¿Qué vas a tejer?</h1>
+      <header className="hero">
+        <div className="hero-text">
+          <p className="eyebrow">Punto a punto</p>
+          <h1>¿Qué vas a tejer hoy?</h1>
+        </div>
+        <div className="hero-flock">
+          <YarnBall className="hero-yarn" />
+          <Sheep className="hero-sheep" />
+        </div>
+        <Meadow className="hero-meadow" />
       </header>
       <div className="start-actions">
         <label className="file-button primary start-action">
+          <PictureIcon />
           <span className="start-title">Empezar con una imagen</span>
           <span className="start-hint">
             Un pixel art o la captura de un patrón
@@ -507,6 +522,7 @@ export default function App({
           />
         </label>
         <button className="start-action" onClick={() => setCreating(true)}>
+          <GridPencilIcon />
           <span className="start-title">Dibujar desde cero</span>
           <span className="start-hint">
             Eliges la medida y pintas punto a punto
@@ -543,11 +559,15 @@ export default function App({
         </p>
       )}
       {!projects.length ? (
-        <p className="empty-state">
-          Aquí aparecerá lo que diseñes. Se guarda solo en este dispositivo.
-        </p>
+        <div className="empty-projects">
+          <Sheep asleep />
+          <p>
+            <strong>Todavía no hay nada por aquí</strong>
+          </p>
+          <p>Lo que diseñes se guarda solo en este dispositivo.</p>
+        </div>
       ) : (
-        <ul className="project-list">
+        <ul className="project-list with-thumbs">
           {[...projects]
             .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
             .map((project) => (

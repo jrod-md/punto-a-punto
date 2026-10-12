@@ -33,7 +33,9 @@ export default function GridCanvas(options: CanvasOptions) {
         >
           +
         </button>
-        <button onClick={() => engine.current?.fit()}>Ver completa</button>
+        <button aria-label="Ver completa" onClick={() => engine.current?.fit()}>
+          ⤢
+        </button>
       </div>
       <canvas
         ref={canvas}

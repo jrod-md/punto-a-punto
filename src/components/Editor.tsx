@@ -139,25 +139,25 @@ export default function Editor({
             {format.format(project.rows * measures.rowHeightCm)} cm
           </p>
         </div>
+        <button className="quiet" onClick={() => setPanel('settings')}>
+          Ajustes
+        </button>
+      </header>
+      <nav className="editor-tabs" aria-label="Qué hacer con el diseño">
         <button onClick={() => setPanel('yarn')}>Hilo</button>
         <button
           aria-label="Ver patrón"
           onClick={() => onNavigate(project, 'pattern')}
         >
-          Ver
-          <br />
-          patrón
+          Patrón
         </button>
         <button
           aria-label="Modo tejer"
           onClick={() => onNavigate(project, 'weave')}
         >
-          Modo
-          <br />
-          tejer
+          Tejer
         </button>
-        <button onClick={() => setPanel('settings')}>Ajustes</button>
-      </header>
+      </nav>
       <section className="drawing-panel" aria-label="Herramientas y cuadrícula">
         <GridCanvas
           project={project}
