@@ -22,6 +22,9 @@ import Pattern from './components/Pattern';
 import Weave from './components/Weave';
 import { adjustProgress } from './core/weaving';
 import { overdueBackups } from './core/backups';
+import { DEFAULT_PROFILES } from './core/defaults';
+import { createExampleProject, EXAMPLE_DRAWINGS } from './core/examples';
+import type { ExampleDrawing } from './core/examples';
 import {
   needsIosInstallTip,
   requestPersistentStorage,
@@ -43,6 +46,8 @@ export default function App({
   const [openedAt] = useState(() => Date.now());
   const [installTip, setInstallTip] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [startingExample, setStartingExample] = useState(false);
+  const [mirror, setMirror] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [managingProfiles, setManagingProfiles] = useState(false);
   const [calibratingId, setCalibratingId] = useState<string | undefined>();
@@ -176,6 +181,7 @@ export default function App({
       setImageFile(null);
       setScreen('editor');
       setActive(project);
+      setMirror(false);
       setError('');
       setSaveStatus('Guardado en este dispositivo');
     } catch {
@@ -206,6 +212,30 @@ export default function App({
       }));
     } catch {
       setError('No se pudo duplicar el proyecto.');
+    }
+  }
+
+  async function startExample(drawing: ExampleDrawing) {
+    if (startingExample) return;
+    setStartingExample(true);
+    try {
+      let profile = profiles.find((entry) => entry.hookMm === 4);
+      if (!profile) {
+        profile = { ...DEFAULT_PROFILES[1]!, id: createId() };
+        await saveProfile(profile);
+      }
+      await createProject({
+        ...createExampleProject(drawing, profile, createId()),
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : 'No se pudo abrir el ejemplo.',
+      );
+    } finally {
+      setStartingExample(false);
     }
   }
 
@@ -386,6 +416,8 @@ export default function App({
         initialProject={active}
         profiles={profiles}
         saveStatus={saveStatus}
+        mirror={mirror}
+        onMirrorChange={setMirror}
         onChange={saveChange}
         onNavigate={(project, nextScreen) => {
           void queue.current.then(() => {
@@ -415,6 +447,7 @@ export default function App({
               return;
             }
             setActive(null);
+            setMirror(false);
           });
         }}
         onExport={(project) =>
@@ -529,6 +562,38 @@ export default function App({
           </span>
         </button>
       </div>
+      {projects.length < 3 && (
+        <section className="examples" aria-labelledby="examples-title">
+          <h2 className="section-title" id="examples-title">
+            O prueba con un ejemplo
+          </h2>
+          <div className="example-row">
+            {EXAMPLE_DRAWINGS.map((drawing) => (
+              <button
+                key={drawing.id}
+                disabled={startingExample}
+                onClick={() => {
+                  void startExample(drawing);
+                }}
+              >
+                <ProjectThumb
+                  project={{
+                    ...createExampleProject(
+                      drawing,
+                      DEFAULT_PROFILES[1]!,
+                      `thumb-${drawing.id}`,
+                    ),
+                    cols: drawing.cols,
+                    rows: drawing.rows,
+                    cells: drawing.cells,
+                  }}
+                />
+                <span>{drawing.name}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
       {installTip && (
         <aside className="notice" role="status">
           <p>

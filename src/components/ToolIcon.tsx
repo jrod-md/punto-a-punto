@@ -6,6 +6,7 @@ const paths = {
   undo: 'm8 5-5 5 5 5M3 10h11a6 6 0 0 1 0 12',
   redo: 'm16 5 5 5-5 5M21 10H10a6 6 0 0 0 0 12',
   center: 'M12 2v20M2 12h20M6 6h12v12H6V6Z',
+  more: 'M5 11h.01M12 11h.01M19 11h.01',
 };
 export default function ToolIcon({ name }: { name: keyof typeof paths }) {
   return (
@@ -16,7 +17,7 @@ export default function ToolIcon({ name }: { name: keyof typeof paths }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
+      strokeWidth={name === 'more' ? 3.6 : 1.8}
       strokeLinecap="round"
       strokeLinejoin="round"
     >

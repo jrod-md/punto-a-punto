@@ -253,3 +253,27 @@ export function GridPencilIcon() {
     </svg>
   );
 }
+
+const actionPaths = {
+  center: 'M20 5v30M5 20h30M11 11h18v18H11z',
+  mirror: 'M20 5v30M15 10l-9 10 9 10zM25 10l9 10-9 10z',
+  text: 'M5 29l8-18 8 18M8 23h10M24 14h11M29.5 14v15',
+};
+
+export function EditorActionIcon({ name }: { name: keyof typeof actionPaths }) {
+  return (
+    <svg
+      className="art start-icon"
+      viewBox="0 0 40 40"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d={actionPaths[name]} />
+    </svg>
+  );
+}

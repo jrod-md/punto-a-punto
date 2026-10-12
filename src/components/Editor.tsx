@@ -24,11 +24,15 @@ import EditorPanel from './EditorPanel';
 import ToolIcon from './ToolIcon';
 import YarnPanel from './YarnPanel';
 import ImageImport from './ImageImport';
+import EditorMore from './EditorMore';
+import TextComposer from './TextComposer';
 
 interface Props {
   initialProject: Project;
   profiles: GaugeProfile[];
   saveStatus: string;
+  mirror: boolean;
+  onMirrorChange(enabled: boolean): void;
   onChange(project: Project): void;
   onBack(): void;
   onExport(project: Project): void;
@@ -39,13 +43,15 @@ const tools: { id: Tool; name: string }[] = [
   { id: 'paint', name: 'Pintar' },
   { id: 'erase', name: 'Borrar' },
   { id: 'fill', name: 'Rellenar' },
-  { id: 'select', name: 'Seleccionar' },
+  { id: 'select', name: 'Elegir' },
 ];
 
 export default function Editor({
   initialProject,
   profiles,
   saveStatus,
+  mirror,
+  onMirrorChange,
   onChange,
   onBack,
   onExport,
@@ -62,6 +68,8 @@ export default function Editor({
   const [report, setReport] = useState('');
   const [panel, setPanel] = useState<'settings' | 'yarn' | null>(null);
   const [importing, setImporting] = useState(false);
+  const [more, setMore] = useState(false);
+  const [writing, setWriting] = useState(false);
   const project = history.present;
   const profile = profiles.find((entry) => entry.id === project.profileId)!;
   const colorIndex = Math.max(
@@ -101,6 +109,26 @@ export default function Editor({
         : (result.warning ?? 'Todavía no hay un diseño para centrar.'),
     );
   }
+
+  if (writing)
+    return (
+      <TextComposer
+        project={project}
+        profile={profile}
+        initialColor={colorIndex}
+        onCancel={() => setWriting(false)}
+        onComplete={(next, bounds, color) => {
+          apply(next);
+          setSelection(bounds);
+          setSelectedId(next.palette[color]!.id);
+          setTool('select');
+          setWriting(false);
+          setReport(
+            'Texto centrado. Arrastra dentro para moverlo; un solo «Deshacer» lo quita.',
+          );
+        }}
+      />
+    );
 
   if (importing)
     return (
@@ -165,6 +193,7 @@ export default function Editor({
           tool={tool}
           colorIndex={colorIndex}
           centers={centers}
+          mirror={mirror}
           selection={selection}
           onStroke={(indices, color) => {
             apply(paintStroke(project, indices, color));
@@ -264,12 +293,32 @@ export default function Editor({
             <ToolIcon name="redo" />
             <span className="tool-caption">Rehacer</span>
           </button>
-          <button aria-label="Centrar diseño" onClick={center}>
-            <ToolIcon name="center" />
-            <span className="tool-caption">Centrar</span>
+          <button
+            aria-label={mirror ? 'Más, espejo encendido' : 'Más'}
+            aria-haspopup="dialog"
+            aria-expanded={more}
+            onClick={() => setMore(true)}
+          >
+            <ToolIcon name="more" />
+            <span className="tool-caption">
+              Más{mirror && <span className="mirror-mark" aria-hidden="true" />}
+            </span>
           </button>
         </div>
       </footer>
+      {more && (
+        <EditorMore
+          mirror={mirror}
+          onClose={() => setMore(false)}
+          onAction={(action) => {
+            setMore(false);
+            if (action === 'center') center();
+            if (action === 'mirror') onMirrorChange(!mirror);
+            if (action === 'text') setWriting(true);
+            if (action === 'image') setImporting(true);
+          }}
+        />
+      )}
       {panel && (
         <EditorPanel
           title={
@@ -281,18 +330,6 @@ export default function Editor({
             <p role="alert" className="error">
               {saveStatus}
             </p>
-          )}
-          {panel === 'settings' && (
-            <div className="page-actions">
-              <button
-                onClick={() => {
-                  setPanel(null);
-                  setImporting(true);
-                }}
-              >
-                Importar imagen
-              </button>
-            </div>
           )}
           {panel === 'yarn' ? (
             <YarnPanel
@@ -453,7 +490,7 @@ export default function Editor({
               </p>
               <p className="tool-legend">
                 Herramientas, de izquierda a derecha: pintar, borrar, rellenar,
-                seleccionar, deshacer, rehacer y centrar.
+                elegir, deshacer, rehacer y más.
               </p>
               <button onClick={() => onExport(project)}>
                 Exportar respaldo JSON
