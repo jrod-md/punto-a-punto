@@ -149,7 +149,7 @@ Las letras salen del orden de la paleta y el patrón incluye la leyenda letra �
 4. **Perfiles de muestra:** lista y asistente de calibración paso a paso.
 5. **Patrón:** texto fila por fila, leyenda, lista de hilo, y exportación a PDF y a imagen de la cuadrícula.
 6. **Modo tejer:** fila actual resaltada y el resto atenuado, sentido de lectura indicado, toque grande que avanza `tapStep` puntos, botón de un punto, deshacer el último avance, pasar de fila. El progreso se guarda solo. La pantalla no se apaga mientras está abierto.
-7. **Importar imagen:** recortar, elegir tamaño y número de colores, y llevar el resultado al editor para retocar.
+7. **Importar imagen:** abrir la imagen de un pixel art (incluidas capturas de patrones con cuadrícula), detectar sus cuadros y colores, y colocarlo centrado y a escala en una pieza de la medida elegida. Es una de las funciones principales, no un extra. Detalle en `docs/encargos/05-importar-imagen.md`.
 
 ## 6. Decisiones técnicas
 
