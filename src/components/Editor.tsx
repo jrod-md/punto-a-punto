@@ -124,7 +124,7 @@ export default function Editor({
           setTool('select');
           setWriting(false);
           setReport(
-            'Texto centrado. Arrastra dentro para moverlo; un solo «Deshacer» lo quita.',
+            'Texto añadido. Arrastra dentro del recuadro para moverlo; «Deshacer» lo quita.',
           );
         }}
       />
@@ -477,24 +477,24 @@ export default function Editor({
                   </div>
                 ))}
               </details>
-              <button
-                aria-pressed={centers}
-                onClick={() => setCenters(!centers)}
-              >
-                {centers ? 'Ocultar centro' : 'Mostrar centro'}
-              </button>
-              <p className="subtle">
-                Un dedo usa la herramienta. Dos dedos desplazan y amplían. En
-                PC: rueda para ampliar; botón central o espacio y arrastre para
-                desplazar.
-              </p>
-              <p className="tool-legend">
-                Herramientas, de izquierda a derecha: pintar, borrar, rellenar,
-                elegir, deshacer, rehacer y más.
-              </p>
-              <button onClick={() => onExport(project)}>
-                Exportar respaldo JSON
-              </button>
+              <div className="panel-actions">
+                <button onClick={() => setCenters(!centers)}>
+                  {centers
+                    ? 'Ocultar las líneas del centro'
+                    : 'Mostrar las líneas del centro'}
+                </button>
+                <button onClick={() => onExport(project)}>
+                  Guardar una copia
+                </button>
+              </div>
+              <details>
+                <summary>Cómo moverte por el dibujo</summary>
+                <p className="subtle">
+                  Con un dedo pintas. Con dos dedos mueves y amplías el dibujo.
+                  En la computadora: la rueda amplía, y con la barra espaciadora
+                  pulsada arrastras para moverte.
+                </p>
+              </details>
             </>
           )}
         </EditorPanel>

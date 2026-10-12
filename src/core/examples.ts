@@ -64,7 +64,7 @@ const sketches = [
     id: 'sheep',
     name: 'Ovejita',
     colors: [
-      ['Verde suave', '#dfead9'],
+      ['Verde prado', '#a9c7a0'],
       ['Lana crema', '#fffcf6'],
       ['Oscuro', '#3a2f2a'],
     ],

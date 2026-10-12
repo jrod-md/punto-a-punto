@@ -307,7 +307,7 @@ export default function App({
     if (!data) return;
     try {
       if (file.size > 16 * 1024 * 1024)
-        throw new Error('El respaldo supera el máximo de 16 MB.');
+        throw new Error('La copia guardada supera el máximo de 16 MB.');
       const imported = parseProjectFile(await file.text());
       const existing = await data.projects.get(imported.project.id);
       const normalizedExisting = existing
@@ -337,7 +337,7 @@ export default function App({
           setError(
             reason instanceof Error && !(reason instanceof DOMException)
               ? `No se pudo importar: ${reason.message}`
-              : 'No se pudo guardar el respaldo. No se han reemplazado los datos.',
+              : 'No se pudo abrir la copia. Tus proyectos siguen como estaban.',
           );
         }
       };
@@ -347,8 +347,8 @@ export default function App({
       ) {
         setConfirmation({
           title: 'Reemplazar proyecto',
-          message: `Ya existe «${existing?.name}». El respaldo reemplazará su dibujo y sus medidas.`,
-          confirmLabel: 'Reemplazar con respaldo',
+          message: `Ya existe «${existing?.name}». La copia guardada reemplazará su dibujo y sus medidas.`,
+          confirmLabel: 'Reemplazar',
           action: applyImport,
         });
         return;
@@ -358,7 +358,7 @@ export default function App({
       setError(
         reason instanceof Error && !(reason instanceof DOMException)
           ? `No se pudo importar: ${reason.message}`
-          : 'No se pudo leer el archivo. Elige un respaldo JSON válido.',
+          : 'No se pudo leer el archivo. Elige una copia guardada con esta app.',
       );
     }
   }
@@ -429,7 +429,7 @@ export default function App({
           void queue.current.then(() => {
             if (failedSave.current) {
               setSaveStatus(
-                'El último cambio no está guardado. Exporta un respaldo desde el editor o vuelve a intentar una edición.',
+                'El último cambio no está guardado. Guarda una copia desde Ajustes o vuelve a intentar el cambio.',
               );
               return;
             }
@@ -442,7 +442,7 @@ export default function App({
           void queue.current.then(() => {
             if (failedSave.current) {
               setSaveStatus(
-                'El último cambio no está guardado. Exporta un respaldo desde el editor o vuelve a intentar una edición.',
+                'El último cambio no está guardado. Guarda una copia desde Ajustes o vuelve a intentar el cambio.',
               );
               return;
             }

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { commitHistory, createHistory, undoHistory } from './editor';
-import { placeStitchText, renderStitchText, STITCH_FONT } from './text';
+import {
+  placeStitchText,
+  renderStitchText,
+  STITCH_FONT,
+  suggestTextPosition,
+} from './text';
 import { TEST_PROJECT } from './testFixtures';
 
 const piece = {
@@ -126,5 +131,35 @@ describe('placing text', () => {
     const history = commitHistory(createHistory(original), result.project!);
     expect(history.past).toHaveLength(1);
     expect(undoHistory(history).present).toBe(original);
+  });
+  it('places text below or above the middle with a margin', () => {
+    const text = renderStitchText('ANA');
+    expect(placeStitchText(piece, text, 1, 'bottom').selection).toMatchObject({
+      left: 23,
+      bottom: 3,
+    });
+    expect(placeStitchText(piece, text, 1, 'top').selection).toMatchObject({
+      left: 23,
+      bottom: 22,
+    });
+    const tight = { ...piece, rows: 8, cells: piece.cells.slice(0, 512) };
+    expect(placeStitchText(tight, text, 1, 'bottom').selection!.bottom).toBe(0);
+    expect(placeStitchText(tight, text, 1, 'top').selection!.bottom).toBe(1);
+  });
+  it('suggests a place that does not cover the drawing', () => {
+    const text = renderStitchText('ANA');
+    expect(suggestTextPosition(piece, text)).toBe('center');
+    const paint = (rows: readonly number[]) => ({
+      ...piece,
+      cells: piece.cells.map((value, index) =>
+        rows.includes(Math.floor(index / 64)) && index % 64 === 30 ? 2 : value,
+      ),
+    });
+    expect(suggestTextPosition(paint([15]), text)).toBe('bottom');
+    expect(suggestTextPosition(paint([15, 5]), text)).toBe('top');
+    expect(suggestTextPosition(paint([15, 5, 25]), text)).toBe('center');
+    expect(suggestTextPosition(piece, renderStitchText('LUCÍA', 3))).toBe(
+      'center',
+    );
   });
 });
