@@ -1776,3 +1776,20 @@ label {
 .text-composer .segmented.wide {
   margin-bottom: 12px;
 }
+
+/* Polish pass: text placement, example row and mirror. */
+.example-row {
+  scrollbar-width: none;
+}
+.example-row::-webkit-scrollbar {
+  display: none;
+}
+.text-composer .swatches {
+  margin-bottom: 12px;
+  padding-left: 0;
+}
+.panel-actions {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}

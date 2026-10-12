@@ -1,9 +1,20 @@
 import { useState } from 'react';
 import { gauge } from '../core/gauge';
 import type { Bounds } from '../core/grid';
-import { placeStitchText, renderStitchText } from '../core/text';
+import {
+  placeStitchText,
+  renderStitchText,
+  suggestTextPosition,
+} from '../core/text';
+import type { TextPosition } from '../core/text';
 import type { GaugeProfile, Project } from '../core/types';
 import ImagePreview from './ImagePreview';
+
+const POSITIONS: readonly (readonly [TextPosition, string])[] = [
+  ['top', 'Arriba'],
+  ['center', 'En el centro'],
+  ['bottom', 'Abajo'],
+];
 
 export default function TextComposer({
   project,
@@ -21,6 +32,10 @@ export default function TextComposer({
   const [text, setText] = useState('');
   const [scale, setScale] = useState(1);
   const [twoLines, setTwoLines] = useState(false);
+  // Until she chooses, the text goes where it does not cover the drawing.
+  const [chosenPosition, setChosenPosition] = useState<TextPosition | null>(
+    null,
+  );
   const [color, setColor] = useState(
     project.palette[initialColor]?.id !== project.backgroundColorId
       ? initialColor
@@ -32,7 +47,8 @@ export default function TextComposer({
         ),
   );
   const drawing = renderStitchText(text, scale, twoLines);
-  const placement = placeStitchText(project, drawing, color);
+  const position = chosenPosition ?? suggestTextPosition(project, drawing);
+  const placement = placeStitchText(project, drawing, color, position);
   const preview = placement.project ?? project;
   const measures = gauge(profile);
   const format = new Intl.NumberFormat('es', { maximumFractionDigits: 1 });
@@ -86,19 +102,24 @@ export default function TextComposer({
           placeholder="Por ejemplo, LUCÍA"
         />
       </label>
-      <label>
+      <p className="adjust-label" id="text-color-label">
         Color del texto
-        <select
-          value={color}
-          onChange={(event) => setColor(Number(event.target.value))}
-        >
-          {project.palette.map((entry, index) => (
-            <option key={entry.id} value={index}>
-              {entry.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      </p>
+      <div className="swatches" role="group" aria-labelledby="text-color-label">
+        {project.palette.map((entry, index) => (
+          <button
+            key={entry.id}
+            aria-pressed={index === color}
+            aria-label={entry.name}
+            onClick={() => setColor(index)}
+          >
+            <span
+              className="color-dot"
+              style={{ backgroundColor: entry.hex }}
+            />
+          </button>
+        ))}
+      </div>
       <p className="adjust-label" id="text-size-label">
         Tamaño del texto
       </p>
@@ -112,6 +133,24 @@ export default function TextComposer({
             key={label}
             aria-pressed={scale === index + 1}
             onClick={() => setScale(index + 1)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <p className="adjust-label" id="text-place-label">
+        Dónde va
+      </p>
+      <div
+        className="segmented wide"
+        role="group"
+        aria-labelledby="text-place-label"
+      >
+        {POSITIONS.map(([value, label]) => (
+          <button
+            key={value}
+            aria-pressed={position === value}
+            onClick={() => setChosenPosition(value)}
           >
             {label}
           </button>

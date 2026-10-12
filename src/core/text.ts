@@ -139,10 +139,62 @@ export interface TextPlacement {
   reason: string | null;
 }
 
+export type TextPosition = 'top' | 'center' | 'bottom';
+
+function textBottom(
+  project: Project,
+  drawing: StitchText,
+  position: TextPosition,
+): number {
+  const free = project.rows - drawing.rows;
+  // A small margin keeps the lettering off the edge of the piece.
+  const margin = Math.min(Math.floor(free / 2), Math.ceil(project.rows / 12));
+  if (position === 'bottom') return margin;
+  if (position === 'top') return free - margin;
+  return Math.floor(free / 2);
+}
+
+function textBounds(
+  project: Project,
+  drawing: StitchText,
+  position: TextPosition,
+): Bounds {
+  return {
+    left: Math.floor((project.cols - drawing.cols) / 2),
+    bottom: textBottom(project, drawing, position),
+    width: drawing.cols,
+    height: drawing.rows,
+  };
+}
+
+// Picks the first place where the lettering does not sit on the drawing.
+export function suggestTextPosition(
+  project: Project,
+  drawing: StitchText,
+): TextPosition {
+  if (drawing.cols > project.cols || drawing.rows > project.rows)
+    return 'center';
+  const background = project.palette.findIndex(
+    (entry) => entry.id === project.backgroundColorId,
+  );
+  const options: readonly TextPosition[] = ['center', 'bottom', 'top'];
+  return (
+    options.find((position) => {
+      const bounds = textBounds(project, drawing, position);
+      for (let row = bounds.bottom; row < bounds.bottom + bounds.height; row++)
+        for (let col = bounds.left; col < bounds.left + bounds.width; col++)
+          if (project.cells[row * project.cols + col] !== background)
+            return false;
+      return true;
+    }) ?? 'center'
+  );
+}
+
 export function placeStitchText(
   project: Project,
   drawing: StitchText,
   colorIndex: number,
+  position: TextPosition = 'center',
 ): TextPlacement {
   validateProject(project);
   if (!Number.isInteger(colorIndex) || !project.palette[colorIndex])
@@ -156,12 +208,7 @@ export function placeStitchText(
   else if (drawing.rows > project.rows)
     reason = 'El texto no cabe a lo alto de la pieza.';
   if (reason) return { project: null, selection: null, reason };
-  const selection = {
-    left: Math.floor((project.cols - drawing.cols) / 2),
-    bottom: Math.floor((project.rows - drawing.rows) / 2),
-    width: drawing.cols,
-    height: drawing.rows,
-  };
+  const selection = textBounds(project, drawing, position);
   const cells = [...project.cells];
   drawing.cells.forEach((painted, index) => {
     if (!painted) return;

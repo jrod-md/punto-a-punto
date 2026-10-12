@@ -313,6 +313,15 @@ export class CanvasEngine {
       ctx.stroke();
       ctx.setLineDash([]);
     }
+    if (options.mirror) {
+      // A solid green axis tells the mirror apart from the centre guides.
+      ctx.strokeStyle = '#4f7a5a';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x + (project.cols * cw) / 2, y);
+      ctx.lineTo(x + (project.cols * cw) / 2, y + project.rows * ch);
+      ctx.stroke();
+    }
     const selection = this.previewSelection ?? options.selection;
     if (selection) {
       const dx = this.mode === 'move' ? this.moving.col : 0;
